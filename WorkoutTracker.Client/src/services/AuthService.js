@@ -1,24 +1,46 @@
 import auth0 from 'auth0-js';
 import DebugService from './DebugService';
 
-// Configuration object to hold Auth0 settings
-// This gets the environment variables at runtime
+// Default Auth0 config (as fallback)
+const DEFAULT_AUTH0_CONFIG = {
+  domain: 'dev-47c4icnwccbjdiz5.us.auth0.com',
+  clientID: '6VxrjlK5YXdXm9FVX2GFPpBdwDShwuTc',
+  audience: 'https://workouttracker-api',
+  callbackUrl: 'https://workout-tracker-rose.vercel.app/callback',
+  responseType: 'token id_token',
+  scope: 'openid profile email'
+};
+
+// Robust configuration that checks for environment variables and falls back to defaults
 const getConfig = () => {
-  // For Auth0 domain
-  const domain = process.env.VUE_APP_AUTH0_DOMAIN;
-  // For Auth0 client ID
-  const clientID = process.env.VUE_APP_AUTH0_CLIENT_ID;
-  // For Auth0 audience
-  const audience = process.env.VUE_APP_AUTH0_AUDIENCE;
-  // For callback URL
-  const callbackUrl = process.env.VUE_APP_AUTH0_CALLBACK_URL || 'https://workout-tracker-rose.vercel.app/callback';
+  // Get values from environment variables
+  const envDomain = process.env.VUE_APP_AUTH0_DOMAIN;
+  const envClientID = process.env.VUE_APP_AUTH0_CLIENT_ID;
+  const envAudience = process.env.VUE_APP_AUTH0_AUDIENCE;
+  const envCallbackUrl = process.env.VUE_APP_AUTH0_CALLBACK_URL;
   
-  // Log config for debugging
+  // Check for invalid values - if env var name appears in the value, it's not correctly substituted
+  const isDomainValid = envDomain && !envDomain.includes('VUE_APP_');
+  const isClientIDValid = envClientID && !envClientID.includes('VUE_APP_');
+  const isAudienceValid = envAudience && !envAudience.includes('VUE_APP_');
+  const isCallbackUrlValid = envCallbackUrl && !envCallbackUrl.includes('VUE_APP_');
+  
+  // Use environment variables or fall back to default values
+  const domain = isDomainValid ? envDomain : DEFAULT_AUTH0_CONFIG.domain;
+  const clientID = isClientIDValid ? envClientID : DEFAULT_AUTH0_CONFIG.clientID;
+  const audience = isAudienceValid ? envAudience : DEFAULT_AUTH0_CONFIG.audience;
+  const callbackUrl = isCallbackUrlValid ? envCallbackUrl : DEFAULT_AUTH0_CONFIG.callbackUrl;
+  
+  // Log config for debugging (masked)
   console.log('Auth0 Configuration (masked):');
-  console.log('Domain:', domain ? domain.substring(0, 5) + '...' : 'Not set');
-  console.log('Client ID:', clientID ? clientID.substring(0, 5) + '...' : 'Not set');
-  console.log('Audience:', audience ? audience.substring(0, 5) + '...' : 'Not set');
-  console.log('Callback URL:', callbackUrl ? callbackUrl.substring(0, 10) + '...' : 'Not set');
+  console.log('Domain:', domain ? domain.substring(0, 5) + '...' : 'Not set', 
+              isDomainValid ? '(from env)' : '(using fallback)');
+  console.log('Client ID:', clientID ? clientID.substring(0, 5) + '...' : 'Not set', 
+              isClientIDValid ? '(from env)' : '(using fallback)');
+  console.log('Audience:', audience ? audience.substring(0, 5) + '...' : 'Not set', 
+              isAudienceValid ? '(from env)' : '(using fallback)');
+  console.log('Callback URL:', callbackUrl ? callbackUrl.substring(0, 10) + '...' : 'Not set', 
+              isCallbackUrlValid ? '(from env)' : '(using fallback)');
   
   // Return the config
   return {
@@ -26,8 +48,8 @@ const getConfig = () => {
     clientID,
     audience,
     callbackUrl,
-    responseType: 'token id_token',
-    scope: 'openid profile email'
+    responseType: DEFAULT_AUTH0_CONFIG.responseType,
+    scope: DEFAULT_AUTH0_CONFIG.scope
   };
 };
 
@@ -37,7 +59,7 @@ class AuthService {
     
     // Log to debugging service
     DebugService.logAuth('Auth0 Configuration initialized', {
-      domainSet: !!config.domain,
+      domain: config.domain,
       clientIdSet: !!config.clientID,
       audienceSet: !!config.audience,
       redirectUri: config.callbackUrl
