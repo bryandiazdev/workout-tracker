@@ -7,7 +7,8 @@ let cachedClient = null;
 let cachedDb = null;
 
 if (!uri) {
-  console.error('Please define the MONGODB_URI environment variable');
+  console.error('ERROR: MONGODB_URI environment variable is not defined!');
+  console.error('Environment variables available:', Object.keys(process.env).join(', '));
 }
 
 async function connectToDatabase() {
@@ -19,24 +20,55 @@ async function connectToDatabase() {
 
   if (!uri) {
     throw new Error(
-      'Please define the MONGODB_URI environment variable inside .env.local'
+      'MONGODB_URI environment variable is not defined. Please check Vercel project settings and .env.local file.'
     );
   }
 
-  // Connect to server
-  console.log('Creating new database connection');
-  const client = new MongoClient(uri);
-  await client.connect();
+  console.log('Attempting to connect to MongoDB with URI:', uri.substring(0, 20) + '...');
   
-  // Get database
-  const dbName = new URL(uri).pathname.substr(1);
-  const db = client.db(dbName || 'workout_tracker');
-
-  // Cache the connection
-  cachedClient = client;
-  cachedDb = db;
-
-  return { client, db };
+  // Connect to server with options for better reliability
+  console.log('Creating new database connection');
+  const options = {
+    connectTimeoutMS: 10000, // 10 seconds
+    socketTimeoutMS: 45000,  // 45 seconds
+    retryWrites: true,
+    maxPoolSize: 10,         // Maximum number of connections in the pool
+  };
+  
+  const client = new MongoClient(uri, options);
+  
+  try {
+    await client.connect();
+    console.log('Successfully connected to MongoDB');
+    
+    // Get database name from URI or use default
+    let dbName;
+    try {
+      dbName = new URL(uri).pathname.substr(1);
+    } catch (error) {
+      console.warn('Could not parse database name from URI, using default');
+      dbName = null;
+    }
+    
+    const db = client.db(dbName || 'workout_tracker');
+    console.log('Using database:', dbName || 'workout_tracker');
+    
+    // Cache the connection
+    cachedClient = client;
+    cachedDb = db;
+    
+    return { client, db };
+  } catch (error) {
+    console.error('Failed to connect to MongoDB:', error.message);
+    console.error('Connection stack trace:', error.stack);
+    
+    // Ensure we don't leave a hanging connection
+    if (client) {
+      await client.close();
+    }
+    
+    throw error;
+  }
 }
 
 module.exports = { connectToDatabase }; 

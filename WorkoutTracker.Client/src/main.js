@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import { createRouter, createWebHistory } from 'vue-router';
 import { createStore } from 'vuex';
+import { inject } from '@vercel/analytics'; // Import Vercel Analytics
 import App from './App.vue';
 import Home from './views/Home.vue';
 import Login from './views/Login.vue';
@@ -16,6 +17,9 @@ import Callback from './views/Callback.vue';
 import Debug from './views/Debug.vue';
 import AuthConfig from './views/AuthConfig.vue';
 import DebugService from './services/DebugService';
+
+// Initialize Vercel Analytics
+inject(); // Initialize Analytics
 
 // Router configuration
 const routes = [
