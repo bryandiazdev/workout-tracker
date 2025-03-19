@@ -880,8 +880,8 @@ async function handleExercises(req, res) {
       
       console.log('Exercise data received:', JSON.stringify(exerciseData));
       
-      // Check if a workout plan ID is included
-      const workoutPlanId = exerciseData.workoutPlanId || exerciseData.planId;
+      // Check if a workout plan ID is included - handle case insensitivity
+      const workoutPlanId = exerciseData.workoutPlanId || exerciseData.WorkoutPlanId || exerciseData.planId || exerciseData.PlanId;
       
       if (workoutPlanId) {
         console.log(`Workout plan ID found: ${workoutPlanId}, forwarding to workout plan exercises handler`);
@@ -902,6 +902,23 @@ async function handleExercises(req, res) {
         // Create a segments array to simulate the workout plan exercises path
         const segments = ['api', 'workoutplans', workoutPlanId, 'exercises'];
         
+        // Normalize the exercise data to handle case sensitivity
+        const normalizedExerciseData = {
+          ...exerciseData,
+          name: exerciseData.name || exerciseData.Name,
+          description: exerciseData.description || exerciseData.Description || '',
+          sets: exerciseData.sets || exerciseData.Sets || 3,
+          reps: exerciseData.reps || exerciseData.Reps || 10,
+          weight: exerciseData.weight || exerciseData.Weight || null,
+          weightUnit: exerciseData.weightUnit || exerciseData.WeightUnit || 'kg',
+          duration: exerciseData.duration || exerciseData.Duration || null,
+          notes: exerciseData.notes || exerciseData.Notes || '',
+          muscleGroups: exerciseData.muscleGroups || exerciseData.MuscleGroups || []
+        };
+
+        // Replace the original request body with the normalized data
+        req.body = normalizedExerciseData;
+        
         // Forward to the workout plan exercises handler
         return await handleWorkoutPlanExercises(req, res, segments);
       }
@@ -909,8 +926,11 @@ async function handleExercises(req, res) {
       // If no plan ID is provided, create a standalone exercise in a dedicated collection
       console.log('No workout plan ID found, creating standalone exercise');
       
+      // Handle case sensitivity for exercise properties
+      const exerciseName = exerciseData.name || exerciseData.Name;
+      
       // Validate exercise data
-      if (!exerciseData.name) {
+      if (!exerciseName) {
         return res.status(400).json({ message: "Exercise name is required" });
       }
       
@@ -918,17 +938,17 @@ async function handleExercises(req, res) {
       const { db } = await connectToDatabase();
       const collection = db.collection('exercises');
       
-      // Create a new exercise document
+      // Create a new exercise document with normalized field names
       const newExercise = {
-        name: exerciseData.name,
-        description: exerciseData.description || '',
-        sets: exerciseData.sets || 3,
-        reps: exerciseData.reps || 10,
-        weight: exerciseData.weight || null,
-        weightUnit: exerciseData.weightUnit || 'kg',
-        duration: exerciseData.duration || null,
-        notes: exerciseData.notes || '',
-        muscleGroups: exerciseData.muscleGroups || [],
+        name: exerciseName,
+        description: exerciseData.description || exerciseData.Description || '',
+        sets: exerciseData.sets || exerciseData.Sets || 3,
+        reps: exerciseData.reps || exerciseData.Reps || 10,
+        weight: exerciseData.weight || exerciseData.Weight || null,
+        weightUnit: exerciseData.weightUnit || exerciseData.WeightUnit || 'kg',
+        duration: exerciseData.duration || exerciseData.Duration || null,
+        notes: exerciseData.notes || exerciseData.Notes || '',
+        muscleGroups: exerciseData.muscleGroups || exerciseData.MuscleGroups || [],
         userId,
         createdDate: new Date().toISOString()
       };
@@ -1015,11 +1035,11 @@ async function handleWorkoutPlanExercises(req, res, segments) {
     
     // Determine the index of planId based on URL pattern
     if (segments[0].toLowerCase() === 'api') {
-      // Pattern: /api/workoutplans/{planId}/exercises[/{exerciseId}]
+      // Pattern: /api/workoutplans/{planId}/exercises
       planIdIndex = 2;
       exerciseIdIndex = 4;
     } else {
-      // Pattern: /workoutplans/{planId}/exercises[/{exerciseId}]
+      // Pattern: /workoutplans/{planId}/exercises
       planIdIndex = 1;
       exerciseIdIndex = 3;
     }
@@ -1091,23 +1111,26 @@ async function handleWorkoutPlanExercises(req, res, segments) {
       
       console.log('Adding exercise to workout plan:', JSON.stringify(exerciseData));
       
+      // Handle case sensitivity for exercise properties
+      const exerciseName = exerciseData.name || exerciseData.Name;
+      
       // Validate exercise data
-      if (!exerciseData.name) {
+      if (!exerciseName) {
         return res.status(400).json({ message: "Exercise name is required" });
       }
       
-      // Create a new exercise with an ID and timestamp
+      // Create a new exercise with an ID and timestamp, handling case sensitivity
       const newExercise = {
         id: new ObjectId().toString(), // Generate a unique ID for the exercise
-        name: exerciseData.name,
-        description: exerciseData.description || '',
-        sets: exerciseData.sets || 3,
-        reps: exerciseData.reps || 10,
-        weight: exerciseData.weight || null,
-        weightUnit: exerciseData.weightUnit || 'kg',
-        duration: exerciseData.duration || null,
-        notes: exerciseData.notes || '',
-        muscleGroups: exerciseData.muscleGroups || [],
+        name: exerciseName,
+        description: exerciseData.description || exerciseData.Description || '',
+        sets: exerciseData.sets || exerciseData.Sets || 3,
+        reps: exerciseData.reps || exerciseData.Reps || 10,
+        weight: exerciseData.weight || exerciseData.Weight || null,
+        weightUnit: exerciseData.weightUnit || exerciseData.WeightUnit || 'kg',
+        duration: exerciseData.duration || exerciseData.Duration || null,
+        notes: exerciseData.notes || exerciseData.Notes || '',
+        muscleGroups: exerciseData.muscleGroups || exerciseData.MuscleGroups || [],
         createdDate: new Date().toISOString()
       };
       
