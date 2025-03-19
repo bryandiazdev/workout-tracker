@@ -157,10 +157,22 @@ EOF
     vercel env ls | grep VUE_APP_
 fi
 
+# Ask if the user wants to update database settings
+read -p "Do you want to configure the MongoDB database? (y/n): " setup_db
+if [[ $setup_db == "y" || $setup_db == "Y" ]]; then
+    echo "Running MongoDB setup script..."
+    chmod +x ./setup-mongodb.sh
+    ./setup-mongodb.sh
+fi
+
 # Deploy to Vercel
 echo ""
 echo "Rebuilding the application..."
 cd WorkoutTracker.Client && npm run build && cd ..
+
+echo ""
+echo "Installing server dependencies..."
+npm install
 
 echo ""
 echo "Deploying to Vercel..."
