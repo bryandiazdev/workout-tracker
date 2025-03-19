@@ -430,8 +430,8 @@ export default {
         id: goal.id,
         name: goal.name,
         description: goal.description || '',
-        startDate: new Date(goal.startDate).toISOString().substr(0, 10),
-        targetDate: new Date(goal.targetDate).toISOString().substr(0, 10),
+        startDate: this.formatDateForInput(goal.startDate),
+        targetDate: this.formatDateForInput(goal.targetDate),
         metricType: goal.metricType,
         startingValue: goal.startingValue,
         currentValue: goal.currentValue,
@@ -487,7 +487,7 @@ export default {
         
         // Format the goal data with proper capitalization for the API
         const formattedGoal = {
-          Id: this.goalForm.id !== null ? parseInt(this.goalForm.id, 10) : null,
+          Id: this.isEditing ? (this.goalForm.id || null) : null,
           Name: this.goalForm.name,
           Description: this.goalForm.description || 'Goal created via workout tracker',
           StartDate: this.formatDateForApi(this.goalForm.startDate),
@@ -528,8 +528,8 @@ export default {
         // Log the goal data for debugging
         console.log(`${this.isEditing ? 'Updating' : 'Creating'} goal with data:`, formattedGoal);
         
-        // Call the appropriate store action
-        if (this.isEditing) {
+        // Call the appropriate store action based on whether we're editing or creating
+        if (this.isEditing && formattedGoal.Id) {
           await this.$store.dispatch('updateGoal', formattedGoal);
           NotificationService.showSuccess('Goal updated successfully');
         } else {
@@ -627,9 +627,23 @@ export default {
       }
     },
     
-    formatDate(dateString) {
-      const options = { year: 'numeric', month: 'long', day: 'numeric' };
-      return new Date(dateString).toLocaleDateString(undefined, options);
+    formatDate(dateStr) {
+      if (!dateStr) return 'Not set';
+      
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        
+        // Use toLocaleDateString for consistent formatting
+        return date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      } catch (error) {
+        console.error('Error formatting date:', error);
+        return 'Error';
+      }
     },
     
     getMetricLabel(metricType) {
@@ -721,6 +735,22 @@ export default {
       
       this.goalForm.unit = metricTypeToUnit[this.goalForm.metricType] || '';
       console.log(`Metric type changed to ${this.goalForm.metricType}, unit set to ${this.goalForm.unit}`);
+    },
+    
+    // Add this helper method for formatting dates in input fields
+    formatDateForInput(dateStr) {
+      if (!dateStr) return '';
+      
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '';
+        
+        // Format as YYYY-MM-DD for input[type="date"]
+        return date.toISOString().substr(0, 10);
+      } catch (error) {
+        console.error('Error formatting date for input:', error);
+        return '';
+      }
     },
     
     // Enhanced debug method with more formats and structured output

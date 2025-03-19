@@ -15,36 +15,101 @@
         </div>
       </div>
       
-      <div class="chart-grid">
-        <div class="chart-card">
-          <h3 class="chart-title">Workout Frequency</h3>
-          <div class="chart-container">
-            <canvas ref="frequencyChart"></canvas>
+      <!-- Summary Cards -->
+      <div class="metrics-section">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-icon">
+              <i class="fas fa-dumbbell"></i>
+            </div>
+            <div class="metric-content">
+              <h3 class="metric-value">{{ workoutPlansArray.length }}</h3>
+              <p class="metric-label">Workout Plans</p>
+            </div>
           </div>
-        </div>
-        
-        <div class="chart-card">
-          <h3 class="chart-title">Workout Duration</h3>
-          <div class="chart-container">
-            <canvas ref="durationChart"></canvas>
+          
+          <div class="metric-card">
+            <div class="metric-icon">
+              <i class="fas fa-calendar-check"></i>
+            </div>
+            <div class="metric-content">
+              <h3 class="metric-value">{{ workoutLogsArray.length }}</h3>
+              <p class="metric-label">Workouts Logged</p>
+            </div>
           </div>
-        </div>
-        
-        <div class="chart-card">
-          <h3 class="chart-title">Exercise Types</h3>
-          <div class="chart-container">
-            <canvas ref="exerciseTypesChart"></canvas>
+          
+          <div class="metric-card">
+            <div class="metric-icon">
+              <i class="fas fa-bullseye"></i>
+            </div>
+            <div class="metric-content">
+              <h3 class="metric-value">{{ goalsArray.length }}</h3>
+              <p class="metric-label">Active Goals</p>
+            </div>
           </div>
-        </div>
-        
-        <div class="chart-card">
-          <h3 class="chart-title">Muscle Groups</h3>
-          <div class="chart-container">
-            <canvas ref="muscleGroupsChart"></canvas>
+          
+          <div class="metric-card">
+            <div class="metric-icon">
+              <i class="fas fa-fire"></i>
+            </div>
+            <div class="metric-content">
+              <h3 class="metric-value">{{ getTotalExercisesCount() }}</h3>
+              <p class="metric-label">Total Exercises</p>
+            </div>
           </div>
         </div>
       </div>
       
+      <!-- AI Generated Summary -->
+      <div class="summary-section">
+        <h2 class="section-title"><i class="fas fa-chart-line"></i> Your Fitness Summary</h2>
+        <div class="summary-card">
+          <p v-if="goalsArray.length === 0 && workoutLogsArray.length === 0">
+            Welcome to your fitness journey! Start by creating goals and logging workouts to see your progress tracked here.
+          </p>
+          <div v-else>
+            <p>
+              <span class="summary-highlight">{{ workoutLogsArray.length }}</span> workouts logged toward 
+              <span class="summary-highlight">{{ goalsArray.length }}</span> fitness goals. 
+              You have <span class="summary-highlight">{{ workoutPlansArray.length }}</span> workout plans to choose from.
+            </p>
+            <p v-if="workoutLogsArray.length > 0">
+              {{ getActivitySummary() }}
+            </p>
+            <p v-if="goalsArray.length > 0">
+              {{ getGoalsSummary() }}
+            </p>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Workout Plans Section -->
+      <div class="workout-plans-section">
+        <h2 class="section-title">Your Workout Plans</h2>
+        <div v-if="!workoutPlans || !Array.isArray(workoutPlans) || workoutPlans.length === 0" class="no-data">
+          <p>You haven't created any workout plans yet.</p>
+          <router-link to="/workout-plans" class="btn btn-primary">Create Your First Plan</router-link>
+        </div>
+        <div v-else class="plans-list">
+          <div v-for="plan in workoutPlansArray.slice(0, 3)" :key="plan.id" class="plan-card">
+            <div class="plan-info">
+              <h3>{{ plan.name }}</h3>
+              <p class="plan-description">{{ plan.description }}</p>
+              <p class="plan-stats">
+                <span><i class="fas fa-running"></i> {{ plan.exercises ? plan.exercises.length : 0 }} exercises</span>
+              </p>
+            </div>
+            <div class="plan-actions">
+              <router-link :to="`/workout-plans/${plan.id}`" class="btn btn-outline-sm">View</router-link>
+            </div>
+          </div>
+          <div class="view-all">
+            <router-link to="/workout-plans" class="btn btn-outline">View All Plans</router-link>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Goals Section -->
       <div class="goals-section">
         <h2 class="section-title">Your Goals</h2>
         <div v-if="!goals || !Array.isArray(goals) || goals.length === 0" class="no-data">
@@ -54,16 +119,16 @@
         <div v-else class="goals-list">
           <div v-for="goal in goalsArray.slice(0, 3)" :key="goal.id" class="goal-card">
             <div class="goal-info">
-              <h3>{{ goal.name }}</h3>
-              <p class="goal-target">{{ goal.targetValue }} {{ goal.unit }}</p>
+              <h3>{{ getGoalName(goal) }}</h3>
+              <p class="goal-target">{{ getGoalCurrentValue(goal) }} / {{ getGoalTargetValue(goal) }} {{ getGoalUnit(goal) }}</p>
               <p class="goal-dates">
-                From {{ formatDate(goal.startDate) }} to {{ formatDate(goal.targetDate) }}
+                Until {{ formatDate(getGoalTargetDate(goal)) }}
               </p>
               <div class="goal-progress">
                 <div class="progress-bar">
-                  <div class="progress-fill" :style="{ width: goal.isCompleted ? '100%' : '0%' }"></div>
+                  <div class="progress-fill" :style="{ width: getProgressPercentage(goal) + '%' }"></div>
                 </div>
-                <p class="progress-text">{{ goal.isCompleted ? 'Completed!' : 'In Progress' }}</p>
+                <p class="progress-text">{{ isGoalCompleted(goal) ? 'Completed!' : Math.round(getProgressPercentage(goal)) + '% Complete' }}</p>
               </div>
             </div>
           </div>
@@ -73,6 +138,7 @@
         </div>
       </div>
       
+      <!-- Recent Workouts Section -->
       <div class="recent-workouts">
         <h2 class="section-title">Recent Workouts</h2>
         <div v-if="!workoutLogs || !Array.isArray(workoutLogs) || workoutLogs.length === 0" class="no-data">
@@ -102,27 +168,13 @@
 
 <script>
 import { mapState } from 'vuex';
-import Chart from 'chart.js/auto';
-import { Chart as ChartJS, registerables } from 'chart.js';
 import AuthService from '../services/AuthService';
-
-// Register all the Chart.js components we'll need
-ChartJS.register(...registerables);
-
-// Use this to prevent chart updates after component is unmounted
-let isComponentMounted = false;
 
 export default {
   name: 'Dashboard',
   data() {
     return {
-      loading: true,
-      frequencyChart: null,
-      durationChart: null,
-      exerciseTypesChart: null,
-      muscleGroupsChart: null,
-      resizeTimeout: null,
-      chartInstances: []  // Track all chart instances for proper cleanup
+      loading: true
     };
   },
   computed: {
@@ -132,17 +184,30 @@ export default {
     },
     workoutLogsArray() {
       return Array.isArray(this.workoutLogs) ? this.workoutLogs : [];
+    },
+    workoutPlansArray() {
+      return Array.isArray(this.workoutPlans) ? this.workoutPlans : [];
     }
   },
   methods: {
     formatDate(dateString) {
       if (!dateString) return '';
       const date = new Date(dateString);
-      return date.toLocaleDateString();
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      
+      return date.toLocaleDateString('en-US', {
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric'
+      });
     },
     formatDuration(duration) {
       if (!duration) return '0 min';
       // Parse ISO duration like PT1H30M or directly use minutes if available
+      if (typeof duration === 'number') {
+        return `${duration} min`;
+      }
+      
       const minutes = typeof duration === 'string' 
         ? duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?/) 
         : null;
@@ -150,781 +215,186 @@ export default {
       if (minutes) {
         const hours = minutes[1] ? parseInt(minutes[1]) : 0;
         const mins = minutes[2] ? parseInt(minutes[2]) : 0;
-        
-        if (hours > 0) {
-          return `${hours}h ${mins}m`;
-        } else {
-          return `${mins} min`;
-        }
-      } else if (typeof duration === 'number') {
-        return `${duration} min`;
-      } else {
-        return '0 min';
+        return hours > 0 ? `${hours}h ${mins}m` : `${mins} min`;
       }
+      
+      return duration;
     },
-    async fetchData() {
-      if (!isComponentMounted) return; // Skip if component is unmounted
+    getTotalExercisesCount() {
+      // Count exercises from workout logs
+      const logExercises = this.workoutLogsArray.reduce((total, log) => {
+        return total + (log.exerciseLogs ? log.exerciseLogs.length : 0);
+      }, 0);
       
-      this.loading = true;
+      // Count exercises from workout plans
+      const planExercises = this.workoutPlansArray.reduce((total, plan) => {
+        return total + (plan.exercises ? plan.exercises.length : 0);
+      }, 0);
       
+      return logExercises + planExercises;
+    },
+    getProgressPercentage(goal) {
+      if (!goal) return 0;
+      if (this.isGoalCompleted(goal)) return 100;
+      
+      const start = parseFloat(this.getGoalStartingValue(goal)) || 0;
+      const current = parseFloat(this.getGoalCurrentValue(goal)) || 0;
+      const target = parseFloat(this.getGoalTargetValue(goal)) || 1;
+      
+      // Calculate progress percentage
+      let percentage = ((current - start) / (target - start)) * 100;
+      
+      // Ensure the percentage is between 0 and 100
+      percentage = Math.max(0, Math.min(100, percentage));
+      
+      return percentage;
+    },
+    getActivitySummary() {
+      // Sort logs by date, newest first
+      const sortedLogs = [...this.workoutLogsArray].sort(
+        (a, b) => new Date(b.workoutDate) - new Date(a.workoutDate)
+      );
+      
+      // Get the most recent workout date
+      let recentActivity = 'No recent activity.';
+      if (sortedLogs.length > 0) {
+        const lastWorkout = sortedLogs[0];
+        const lastWorkoutDate = new Date(lastWorkout.workoutDate);
+        const today = new Date();
+        const diffDays = Math.floor((today - lastWorkoutDate) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 0) {
+          recentActivity = `Your last workout was today.`;
+        } else if (diffDays === 1) {
+          recentActivity = `Your last workout was yesterday.`;
+        } else {
+          recentActivity = `Your last workout was ${diffDays} days ago.`;
+        }
+        
+        // Add more context based on workout frequency
+        if (sortedLogs.length >= 3) {
+          const recentWorkouts = sortedLogs.slice(0, 3);
+          const totalDuration = recentWorkouts.reduce((total, log) => {
+            const duration = typeof log.duration === 'number' ? log.duration : 30; // default to 30 mins
+            return total + duration;
+          }, 0);
+          
+          recentActivity += ` In your last ${recentWorkouts.length} workouts, you've trained for approximately ${totalDuration} minutes.`;
+        }
+      }
+      
+      return recentActivity;
+    },
+    getGoalsSummary() {
+      const completedGoals = this.goalsArray.filter(g => this.isGoalCompleted(g)).length;
+      const inProgressGoals = this.goalsArray.length - completedGoals;
+      
+      let summary = `You have ${completedGoals} completed goal${completedGoals !== 1 ? 's' : ''} and ${inProgressGoals} in progress.`;
+      
+      // Find the goal closest to completion
+      if (inProgressGoals > 0) {
+        const inProgressGoalsList = this.goalsArray.filter(g => !this.isGoalCompleted(g));
+        if (inProgressGoalsList.length > 0) {
+          // Sort by progress percentage
+          inProgressGoalsList.sort((a, b) => this.getProgressPercentage(b) - this.getProgressPercentage(a));
+          
+          const closestGoal = inProgressGoalsList[0];
+          const progress = Math.round(this.getProgressPercentage(closestGoal));
+          
+          if (progress > 0) {
+            summary += ` Your goal "${this.getGoalName(closestGoal)}" is ${progress}% complete!`;
+          }
+        }
+      }
+      
+      return summary;
+    },
+    async loadDashboardData() {
       try {
-        // Fetch all required data
+        this.loading = true;
+        
+        // Check if user is authenticated
+        if (!AuthService.isAuthenticated()) {
+          console.log('User is not authenticated, redirecting to login');
+          this.$router.push('/login');
+          return;
+        }
+        
+        // Fetch all the data needed for the dashboard
         await Promise.all([
-          this.$store.dispatch('fetchUser'),
+          this.$store.dispatch('fetchWorkoutPlans'),
           this.$store.dispatch('fetchWorkoutLogs'),
           this.$store.dispatch('fetchGoals'),
           this.$store.dispatch('fetchStats')
         ]);
-        
-        // Check if still mounted before continuing
-        if (!isComponentMounted) return;
-        
-        // Fetch chart data
-        await this.fetchChartData();
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
-        if (isComponentMounted) { // Only update loading state if still mounted
-          this.loading = false;
-        }
+        this.loading = false;
       }
     },
-    async fetchChartData() {
-      if (!isComponentMounted) return; // Skip if component is unmounted
-      
-      try {
-        // Use ApiService instead of fetch for consistent handling and mock data support
-        const frequencyData = await this.$store.dispatch('fetchChartData', 'workout-frequency');
-        const durationData = await this.$store.dispatch('fetchChartData', 'workout-duration');
-        const exerciseTypesData = await this.$store.dispatch('fetchChartData', 'exercise-types');
-        const muscleGroupsData = await this.$store.dispatch('fetchChartData', 'muscle-groups');
-        
-        // Check if still mounted before continuing
-        if (!isComponentMounted) return;
-        
-        // Render charts if data is available
-        if (frequencyData && Object.keys(frequencyData).length > 0) {
-          this.renderFrequencyChart(frequencyData);
-        } else {
-          console.warn('No workout frequency data available');
-          // Display demo data if no real data
-          this.renderFrequencyChart(this.getDemoFrequencyData());
-        }
-        
-        if (!isComponentMounted) return; // Check again before continuing
-        
-        if (durationData && Object.keys(durationData).length > 0) {
-          this.renderDurationChart(durationData);
-        } else {
-          console.warn('No workout duration data available');
-          this.renderDurationChart(this.getDemoDurationData());
-        }
-        
-        if (!isComponentMounted) return; // Check again before continuing
-        
-        if (exerciseTypesData && Object.keys(exerciseTypesData).length > 0) {
-          this.renderExerciseTypesChart(exerciseTypesData);
-        } else {
-          console.warn('No exercise types data available');
-          this.renderExerciseTypesChart(this.getDemoExerciseTypesData());
-        }
-        
-        if (!isComponentMounted) return; // Check again before continuing
-        
-        if (muscleGroupsData && Object.keys(muscleGroupsData).length > 0) {
-          this.renderMuscleGroupsChart(muscleGroupsData);
-        } else {
-          console.warn('No muscle groups data available');
-          this.renderMuscleGroupsChart(this.getDemoMuscleGroupsData());
-        }
-      } catch (error) {
-        if (!isComponentMounted) return; // Skip if component is unmounted
-        
-        console.error('Error fetching chart data:', error);
-        // Display demo data on error
-        this.renderFrequencyChart(this.getDemoFrequencyData());
-        this.renderDurationChart(this.getDemoDurationData());
-        this.renderExerciseTypesChart(this.getDemoExerciseTypesData());
-        this.renderMuscleGroupsChart(this.getDemoMuscleGroupsData());
-      }
+    // Helper methods to handle property name inconsistencies
+    getGoalName(goal) {
+      return goal.Name || goal.name || 'Unnamed Goal';
     },
-    // Demo data methods
-    getDemoFrequencyData() {
-      const data = {};
-      const today = new Date();
-      
-      // Create 30 days of demo data
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(today.getDate() - i);
-        const dateStr = date.toISOString().split('T')[0];
-        
-        // Simulate workout patterns (more on weekdays, fewer on weekends)
-        const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday
-        if ([1, 3, 5].includes(dayOfWeek)) { // Mon, Wed, Fri
-          data[dateStr] = Math.random() > 0.2 ? 1 : 0;
-        } else if ([2, 4].includes(dayOfWeek)) { // Tue, Thu
-          data[dateStr] = Math.random() > 0.5 ? 1 : 0;
-        } else { // Weekends
-          data[dateStr] = Math.random() > 0.7 ? 1 : 0;
-        }
-        
-        // Occasionally have 2 workouts in a day
-        if (data[dateStr] === 1 && Math.random() > 0.9) {
-          data[dateStr] = 2;
-        }
-      }
-      
-      return data;
+    
+    getGoalDescription(goal) {
+      return goal.Description || goal.description || '';
     },
-    getDemoDurationData() {
-      const data = {};
-      const today = new Date();
-      const frequencyData = this.getDemoFrequencyData();
-      
-      // Create matching duration data for the frequency data
-      Object.keys(frequencyData).forEach(dateStr => {
-        if (frequencyData[dateStr] > 0) {
-          // Generate realistic durations between 30 and 90 minutes
-          const date = new Date(dateStr);
-          const dayOfWeek = date.getDay();
-          
-          if ([1, 5].includes(dayOfWeek)) {
-            // Monday and Friday - typically strength (45-75 min)
-            data[dateStr] = Math.floor(Math.random() * 31) + 45;
-          } else if ([3].includes(dayOfWeek)) {
-            // Wednesday - typically longer sessions (60-90 min)
-            data[dateStr] = Math.floor(Math.random() * 31) + 60;
-          } else if ([2, 4].includes(dayOfWeek)) {
-            // Tuesday, Thursday - typically cardio (30-60 min)
-            data[dateStr] = Math.floor(Math.random() * 31) + 30;
-          } else {
-            // Weekends - variable (30-90 min)
-            data[dateStr] = Math.floor(Math.random() * 61) + 30;
-          }
-          
-          // For days with 2 workouts, increase duration
-          if (frequencyData[dateStr] === 2) {
-            data[dateStr] = Math.round(data[dateStr] * 1.5);
-          }
-        } else {
-          data[dateStr] = 0;
-        }
-      });
-      
-      return data;
+    
+    getGoalUnit(goal) {
+      return goal.Unit || goal.unit || '';
     },
-    getDemoExerciseTypesData() {
-      return {
-        'Strength Training': 42,
-        'Cardio': 35,
-        'Flexibility': 15,
-        'HIIT': 8
-      };
+    
+    getGoalStartDate(goal) {
+      return goal.StartDate || goal.startDate || '';
     },
-    getDemoMuscleGroupsData() {
-      return {
-        'Chest': 22,
-        'Back': 25,
-        'Legs': 30,
-        'Arms': 18,
-        'Shoulders': 15,
-        'Core': 20
-      };
+    
+    getGoalTargetDate(goal) {
+      return goal.TargetDate || goal.targetDate || '';
     },
-    renderFrequencyChart(data) {
-      // Don't render if component is unmounted
-      if (!isComponentMounted) {
-        console.log('Skipping frequency chart render - component unmounted');
-        return;
-      }
-      
-      // Safely destroy existing chart first
-      if (this.frequencyChart) {
-        try {
-          this.frequencyChart.destroy();
-          this.frequencyChart = null;
-        } catch (error) {
-          console.warn('Error destroying frequency chart:', error);
-        }
-      }
-      
-      // Ensure we have data in the right format
-      let dates, counts;
-      
-      if (Array.isArray(data.dates) && Array.isArray(data.counts)) {
-        // Data is already in the right format
-        dates = data.dates;
-        counts = data.counts;
-      } else {
-        // Convert object format to arrays
-        dates = Object.keys(data);
-        counts = Object.values(data);
-      }
-      
-      // Only display last 14 days for better visualization
-      const last14Days = dates.slice(-14);
-      const last14Counts = counts.slice(-14);
-      
-      // Check if canvas exists
-      if (!this.$refs.frequencyChart) {
-        console.warn('Cannot render frequency chart: Canvas element not found');
-        return;
-      }
-      
-      try {
-        // Make sure the canvas is visible and has dimensions
-        const canvas = this.$refs.frequencyChart;
-        if (!canvas) {
-          console.warn('Frequency chart canvas not found');
-          return;
-        }
-        
-        if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
-          console.warn('Frequency chart canvas has zero dimensions, deferring render');
-          if (isComponentMounted) {
-            // Only retry if component is still mounted
-            setTimeout(() => this.renderFrequencyChart(data), 250);
-          }
-          return;
-        }
-        
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          console.warn('Cannot get 2D context for frequency chart');
-          return;
-        }
-        
-        this.frequencyChart = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: last14Days.map(date => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
-            datasets: [{
-              label: 'Workouts',
-              data: last14Counts,
-              backgroundColor: 'rgba(54, 162, 235, 0.6)',
-              borderColor: 'rgba(54, 162, 235, 1)',
-              borderWidth: 1
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: false
-              },
-              tooltip: {
-                enabled: true
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  precision: 0
-                }
-              }
-            }
-          }
-        });
-        
-        // Add to chart instances array for cleanup
-        this.chartInstances.push(this.frequencyChart);
-      } catch (error) {
-        console.error('Error rendering frequency chart:', error);
-      }
+    
+    getGoalStartingValue(goal) {
+      return goal.StartingValue || goal.startingValue || 0;
     },
-    renderDurationChart(data) {
-      // Don't render if component is unmounted
-      if (!isComponentMounted) {
-        console.log('Skipping duration chart render - component unmounted');
-        return;
-      }
-      
-      // Safely destroy existing chart first
-      if (this.durationChart) {
-        try {
-          this.durationChart.destroy();
-          this.durationChart = null;
-        } catch (error) {
-          console.warn('Error destroying duration chart:', error);
-        }
-      }
-      
-      // Ensure we have data in the right format
-      let dates, durations;
-      
-      if (Array.isArray(data.dates) && Array.isArray(data.durations)) {
-        // Data is already in the right format
-        dates = data.dates;
-        durations = data.durations;
-      } else {
-        // Convert object format to arrays
-        dates = Object.keys(data);
-        durations = Object.values(data);
-      }
-      
-      // Only display last 14 days for better visualization
-      const last14Days = dates.slice(-14);
-      const last14Durations = durations.slice(-14);
-      
-      // Check if canvas exists
-      if (!this.$refs.durationChart) {
-        console.warn('Cannot render duration chart: Canvas element not found');
-        return;
-      }
-      
-      try {
-        // Make sure the canvas is visible and has dimensions
-        const canvas = this.$refs.durationChart;
-        if (!canvas) {
-          console.warn('Duration chart canvas not found');
-          return;
-        }
-        
-        if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
-          console.warn('Duration chart canvas has zero dimensions, deferring render');
-          if (isComponentMounted) {
-            // Only retry if component is still mounted
-            setTimeout(() => this.renderDurationChart(data), 250);
-          }
-          return;
-        }
-        
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          console.warn('Cannot get 2D context for duration chart');
-          return;
-        }
-        
-        this.durationChart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: last14Days.map(date => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })),
-            datasets: [{
-              label: 'Duration (minutes)',
-              data: last14Durations,
-              backgroundColor: 'rgba(46, 204, 113, 0.2)',
-              borderColor: 'rgba(46, 204, 113, 1)',
-              borderWidth: 2,
-              tension: 0.2,
-              fill: true
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: false
-              },
-              tooltip: {
-                enabled: true
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                title: {
-                  display: true,
-                  text: 'Minutes'
-                }
-              }
-            }
-          }
-        });
-        
-        // Add to chart instances array for cleanup
-        this.chartInstances.push(this.durationChart);
-      } catch (error) {
-        console.error('Error rendering duration chart:', error);
-      }
+    
+    getGoalCurrentValue(goal) {
+      return goal.CurrentValue || goal.currentValue || 0;
     },
-    renderExerciseTypesChart(data) {
-      // Don't render if component is unmounted
-      if (!isComponentMounted) {
-        console.log('Skipping exercise types chart render - component unmounted');
-        return;
-      }
-      
-      // Safely destroy existing chart first
-      if (this.exerciseTypesChart) {
-        try {
-          this.exerciseTypesChart.destroy();
-          this.exerciseTypesChart = null;
-        } catch (error) {
-          console.warn('Error destroying exercise types chart:', error);
-        }
-      }
-      
-      // Ensure we have data in the right format
-      let labels, values;
-      
-      if (Array.isArray(data.labels) && Array.isArray(data.data)) {
-        // Data is already in the right format
-        labels = data.labels;
-        values = data.data;
-      } else {
-        // Convert object format to arrays
-        labels = Object.keys(data);
-        values = Object.values(data);
-      }
-      
-      // Check if canvas exists
-      if (!this.$refs.exerciseTypesChart) {
-        console.warn('Cannot render exercise types chart: Canvas element not found');
-        return;
-      }
-      
-      try {
-        // Make sure the canvas is visible and has dimensions
-        const canvas = this.$refs.exerciseTypesChart;
-        if (!canvas) {
-          console.warn('Exercise types chart canvas not found');
-          return;
-        }
-        
-        if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
-          console.warn('Exercise types chart canvas has zero dimensions, deferring render');
-          if (isComponentMounted) {
-            // Only retry if component is still mounted
-            setTimeout(() => this.renderExerciseTypesChart(data), 250);
-          }
-          return;
-        }
-        
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          console.warn('Cannot get 2D context for exercise types chart');
-          return;
-        }
-        
-        // Generate vibrant colors for the pie chart
-        const backgroundColors = [
-          'rgba(255, 99, 132, 0.7)',
-          'rgba(54, 162, 235, 0.7)',
-          'rgba(255, 206, 86, 0.7)',
-          'rgba(75, 192, 192, 0.7)',
-          'rgba(153, 102, 255, 0.7)',
-          'rgba(255, 159, 64, 0.7)'
-        ];
-        
-        this.exerciseTypesChart = new Chart(ctx, {
-          type: 'pie',
-          data: {
-            labels: labels,
-            datasets: [{
-              data: values,
-              backgroundColor: backgroundColors.slice(0, labels.length),
-              borderColor: 'rgba(255, 255, 255, 0.5)',
-              borderWidth: 1
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                position: 'right',
-                labels: {
-                  boxWidth: 15,
-                  padding: 15
-                }
-              },
-              tooltip: {
-                enabled: true
-              }
-            }
-          }
-        });
-        
-        // Add to chart instances array for cleanup
-        this.chartInstances.push(this.exerciseTypesChart);
-      } catch (error) {
-        console.error('Error rendering exercise types chart:', error);
-      }
+    
+    getGoalTargetValue(goal) {
+      return goal.TargetValue || goal.targetValue || 0;
     },
-    renderMuscleGroupsChart(data) {
-      // Don't render if component is unmounted
-      if (!isComponentMounted) {
-        console.log('Skipping muscle groups chart render - component unmounted');
-        return;
-      }
-      
-      // Safely destroy existing chart first
-      if (this.muscleGroupsChart) {
-        try {
-          this.muscleGroupsChart.destroy();
-          this.muscleGroupsChart = null;
-        } catch (error) {
-          console.warn('Error destroying muscle groups chart:', error);
-        }
-      }
-      
-      // Ensure we have data in the right format
-      let labels, values;
-      
-      if (Array.isArray(data.labels) && Array.isArray(data.data)) {
-        // Data is already in the right format
-        labels = data.labels;
-        values = data.data;
-      } else {
-        // Convert object format to arrays
-        labels = Object.keys(data);
-        values = Object.values(data);
-      }
-      
-      // Check if canvas exists
-      if (!this.$refs.muscleGroupsChart) {
-        console.warn('Cannot render muscle groups chart: Canvas element not found');
-        return;
-      }
-      
-      try {
-        // Make sure the canvas is visible and has dimensions
-        const canvas = this.$refs.muscleGroupsChart;
-        if (!canvas) {
-          console.warn('Muscle groups chart canvas not found');
-          return;
-        }
-        
-        if (canvas.offsetWidth === 0 || canvas.offsetHeight === 0) {
-          console.warn('Muscle groups chart canvas has zero dimensions, deferring render');
-          if (isComponentMounted) {
-            // Only retry if component is still mounted
-            setTimeout(() => this.renderMuscleGroupsChart(data), 250);
-          }
-          return;
-        }
-        
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          console.warn('Cannot get 2D context for muscle groups chart');
-          return;
-        }
-        
-        this.muscleGroupsChart = new Chart(ctx, {
-          type: 'radar',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Focus Areas',
-              data: values,
-              backgroundColor: 'rgba(142, 68, 173, 0.3)',
-              borderColor: 'rgba(142, 68, 173, 1)',
-              borderWidth: 2,
-              pointBackgroundColor: 'rgba(142, 68, 173, 1)',
-              pointRadius: 4
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: false
-              },
-              tooltip: {
-                enabled: true
-              }
-            },
-            scales: {
-              r: {
-                beginAtZero: true,
-                ticks: {
-                  display: false
-                }
-              }
-            }
-          }
-        });
-        
-        // Add to chart instances array for cleanup
-        this.chartInstances.push(this.muscleGroupsChart);
-      } catch (error) {
-        console.error('Error rendering muscle groups chart:', error);
-      }
-    },
-    cleanupCharts() {
-      console.log('Cleaning up all charts');
-      
-      // Clean up all chart instances
-      this.chartInstances.forEach(chart => {
-        if (chart) {
-          try {
-            chart.destroy();
-          } catch (e) {
-            console.warn('Error destroying chart:', e);
-          }
-        }
-      });
-      
-      // Clear chart instances
-      this.chartInstances = [];
-      
-      // Reset individual chart references
-      this.frequencyChart = null;
-      this.durationChart = null;
-      this.exerciseTypesChart = null;
-      this.muscleGroupsChart = null;
-    },
-    handleResize() {
-      // Skip if component is unmounted
-      if (!isComponentMounted) {
-        return;
-      }
-      
-      // Debounce the resize to avoid too many renders
-      if (this.resizeTimeout) {
-        clearTimeout(this.resizeTimeout);
-      }
-      
-      this.resizeTimeout = setTimeout(() => {
-        // Only refresh if component is still mounted
-        if (isComponentMounted) {
-          this.refreshCharts();
-        }
-      }, 250);
-    },
-    refreshCharts() {
-      // Skip if component is unmounted
-      if (!isComponentMounted) {
-        return;
-      }
-      
-      // Get current chart data
-      const currentData = {
-        frequency: this.frequencyChart?.data,
-        duration: this.durationChart?.data,
-        exerciseTypes: this.exerciseTypesChart?.data,
-        muscleGroups: this.muscleGroupsChart?.data
-      };
-      
-      // Cleanup existing charts
-      this.cleanupCharts();
-      
-      // Re-render with saved data
-      if (currentData.frequency) {
-        this.renderFrequencyChart({ 
-          dates: currentData.frequency.labels, 
-          counts: currentData.frequency.datasets[0].data 
-        });
-      }
-      
-      if (currentData.duration) {
-        this.renderDurationChart({ 
-          dates: currentData.duration.labels, 
-          durations: currentData.duration.datasets[0].data 
-        });
-      }
-      
-      if (currentData.exerciseTypes) {
-        this.renderExerciseTypesChart({ 
-          labels: currentData.exerciseTypes.labels, 
-          data: currentData.exerciseTypes.datasets[0].data 
-        });
-      }
-      
-      if (currentData.muscleGroups) {
-        this.renderMuscleGroupsChart({ 
-          labels: currentData.muscleGroups.labels, 
-          data: currentData.muscleGroups.datasets[0].data 
-        });
-      }
+    
+    isGoalCompleted(goal) {
+      return goal.IsCompleted || goal.isCompleted || false;
     }
   },
-  created() {
-    // Pre-initialize chart data
+  async created() {
     console.log('Dashboard component created');
   },
-  
-  beforeMount() {
-    // Clear any previous state
-    isComponentMounted = false;
-    this.cleanupCharts();
-  },
-  
-  mounted() {
-    isComponentMounted = true;
+  async mounted() {
     console.log('Dashboard component mounted, current auth state:', {
       isAuthenticated: AuthService.isAuthenticated(),
-      hasToken: !!localStorage.getItem('auth_token'),
-      hasUser: !!this.$store.state.user
+      hasUser: !!this.user
     });
     
-    // Ensure we have user data before loading dashboard data
-    if (!this.$store.state.user && AuthService.isAuthenticated()) {
+    // Load user data if authenticated but user data is missing
+    if (AuthService.isAuthenticated() && !this.user) {
       console.log('User data missing but authenticated, loading user data first');
-      this.$store.dispatch('fetchUser')
-        .then(() => {
-          if (isComponentMounted) { // Only proceed if still mounted
-            console.log('User data loaded successfully, now fetching dashboard data');
-            this.fetchData();
-          }
-        })
-        .catch(error => {
-          if (!isComponentMounted) return; // Skip if unmounted
-          
-          console.error('Failed to load user data in dashboard:', error);
-          this.loading = false;
-          
-          // Render mock charts even if user data fails to load
-          this.renderFrequencyChart(this.getDemoFrequencyData());
-          this.renderDurationChart(this.getDemoDurationData());
-          this.renderExerciseTypesChart(this.getDemoExerciseTypesData());
-          this.renderMuscleGroupsChart(this.getDemoMuscleGroupsData());
-        });
-    } else {
-      this.fetchData();
+      await this.$store.dispatch('fetchUser');
+      console.log('User data loaded successfully, now fetching dashboard data');
     }
     
-    // Ensure charts are rendered properly after component is fully mounted
-    this.$nextTick(() => {
-      if (!isComponentMounted) return; // Skip if unmounted
-      
-      // Set a small delay to ensure DOM is fully ready for chart rendering
-      setTimeout(() => {
-        if (!isComponentMounted) return; // Skip if unmounted during timeout
-        
-        if (!this.frequencyChart && this.$refs.frequencyChart) {
-          console.log('Rendering demo charts as fallback');
-          this.renderFrequencyChart(this.getDemoFrequencyData());
-          this.renderDurationChart(this.getDemoDurationData());
-          this.renderExerciseTypesChart(this.getDemoExerciseTypesData());
-          this.renderMuscleGroupsChart(this.getDemoMuscleGroupsData());
-        }
-      }, 500);
-    });
-    
-    // Add resize event listener to handle responsive charts
-    window.addEventListener('resize', this.handleResize);
-  },
-  beforeUnmount() {
-    console.log('Dashboard component unmounting');
-    isComponentMounted = false;
-    
-    // Remove event listener and cleanup charts before component is destroyed
-    window.removeEventListener('resize', this.handleResize);
-    this.cleanupCharts();
-  },
-  deactivated() {
-    console.log('Dashboard component deactivated');
-    isComponentMounted = false;
-    this.cleanupCharts();
+    // Load dashboard data
+    await this.loadDashboardData();
   }
 };
 </script>
 
 <style scoped>
 .dashboard {
-  padding: 1rem 0;
-}
-
-.page-title {
-  font-size: 2rem;
-  margin-bottom: 1.5rem;
-  color: var(--dark-color);
+  padding-bottom: 2rem;
 }
 
 .loading {
@@ -932,15 +402,15 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 400px;
+  min-height: 300px;
 }
 
 .spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top: 4px solid #007bff;
   width: 50px;
   height: 50px;
-  border: 5px solid #f3f3f3;
-  border-top: 5px solid var(--primary-color);
-  border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 1rem;
 }
@@ -951,147 +421,212 @@ export default {
 }
 
 .welcome-card {
-  background-color: var(--primary-color);
+  background: linear-gradient(135deg, #4a90e2, #007bff);
   color: white;
   border-radius: 10px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
-
-.welcome-card h2 {
-  font-size: 1.8rem;
-  margin-bottom: 0.5rem;
-}
-
-.chart-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-}
-
-.chart-card {
-  background-color: white;
   padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.welcome-content h2 {
+  margin-top: 0;
+  font-size: 1.8rem;
+}
+
+.welcome-content p {
+  margin-bottom: 0;
+  font-size: 1rem;
+  opacity: 0.9;
+}
+
+/* Metrics Section */
+.metrics-section {
+  margin-bottom: 2rem;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.metric-card {
+  background-color: white;
   border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.chart-title {
-  font-size: 1.2rem;
-  margin-bottom: 1rem;
-  color: var(--dark-color);
+.metric-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.chart-container {
-  height: 250px;
-  width: 100%;
-  position: relative;
-  flex-grow: 1;
-  min-height: 250px;
+.metric-icon {
+  background-color: #f0f7ff;
+  color: #007bff;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 1rem;
+  font-size: 1.5rem;
+}
+
+.metric-content {
+  flex: 1;
+}
+
+.metric-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.2;
+  color: #2c3e50;
+}
+
+.metric-label {
+  color: #6c757d;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Summary Section */
+.summary-section {
+  margin-bottom: 2rem;
+}
+
+.summary-card {
+  background-color: white;
+  border-radius: 10px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  line-height: 1.6;
+}
+
+.summary-highlight {
+  color: #007bff;
+  font-weight: 700;
 }
 
 .section-title {
   font-size: 1.5rem;
-  margin-bottom: 1.5rem;
-  color: var(--dark-color);
+  margin-bottom: 1rem;
+  color: #2c3e50;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.goals-section, .recent-workouts {
+.section-title i {
+  color: #007bff;
+}
+
+/* Goals, Workout Plans, and Recent Workouts sections */
+.goals-section,
+.workout-plans-section,
+.recent-workouts {
   margin-bottom: 2rem;
 }
 
 .no-data {
-  background-color: #f9f9f9;
+  background-color: #f8f9fa;
+  border-radius: 10px;
   padding: 2rem;
   text-align: center;
-  border-radius: 10px;
   margin-bottom: 1rem;
 }
 
 .no-data p {
   margin-bottom: 1rem;
-  color: #666;
+  color: #6c757d;
 }
 
-.goals-list, .recent-list {
+.goals-list,
+.plans-list,
+.recent-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
 }
 
-.goal-card, .workout-card {
+.goal-card,
+.plan-card,
+.workout-card {
   background-color: white;
   border-radius: 10px;
   padding: 1.5rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.goal-card h3, .workout-card h3 {
-  font-size: 1.2rem;
+.goal-card:hover,
+.plan-card:hover,
+.workout-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.goal-info h3,
+.plan-info h3,
+.workout-details h3 {
+  margin-top: 0;
+  font-size: 1.25rem;
   margin-bottom: 0.5rem;
-  color: var(--dark-color);
 }
 
-.goal-target {
-  font-size: 1.5rem;
-  font-weight: bold;
-  color: var(--primary-color);
+.goal-target,
+.goal-dates,
+.plan-description,
+.plan-stats,
+.workout-date {
+  color: #6c757d;
   margin-bottom: 0.5rem;
-}
-
-.goal-dates {
   font-size: 0.9rem;
-  color: #666;
-  margin-bottom: 1rem;
 }
 
-.goal-progress {
-  margin-top: 1rem;
-}
-
+.goal-progress,
 .progress-bar {
   height: 8px;
   background-color: #e9ecef;
   border-radius: 4px;
+  margin: 0.5rem 0;
   overflow: hidden;
-  margin-bottom: 0.5rem;
 }
 
 .progress-fill {
   height: 100%;
-  background-color: var(--success-color);
+  background-color: #007bff;
   border-radius: 4px;
-  transition: width 0.3s ease;
 }
 
 .progress-text {
-  font-size: 0.9rem;
-  color: #666;
-  text-align: right;
+  font-size: 0.8rem;
+  color: #6c757d;
+  margin: 0;
+}
+
+.plan-actions {
+  margin-top: 1rem;
 }
 
 .workout-date {
-  font-size: 0.9rem;
-  color: #666;
+  font-weight: 600;
   margin-bottom: 0.5rem;
 }
 
-.workout-details p {
-  margin-bottom: 0.3rem;
-  font-size: 0.95rem;
-}
-
 .workout-notes {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #eee;
-  font-size: 0.9rem;
-  color: #666;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e9ecef;
   font-style: italic;
+  color: #6c757d;
 }
 
 .view-all {
@@ -1100,29 +635,58 @@ export default {
   margin-top: 1rem;
 }
 
-.btn-outline {
-  color: var(--primary-color);
-  background-color: transparent;
-  border: 1px solid var(--primary-color);
+.btn {
+  display: inline-block;
   padding: 0.5rem 1rem;
+  border-radius: 5px;
+  font-weight: 500;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover {
+  background-color: #0069d9;
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: #007bff;
+  border: 1px solid #007bff;
 }
 
 .btn-outline:hover {
-  background-color: var(--primary-color);
+  background-color: #007bff;
   color: white;
 }
 
+.btn-outline-sm {
+  background-color: transparent;
+  color: #007bff;
+  border: 1px solid #007bff;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.btn-outline-sm:hover {
+  background-color: #007bff;
+  color: white;
+}
+
+/* Responsive adjustments */
 @media (max-width: 768px) {
-  .chart-grid {
+  .metrics-grid,
+  .goals-list,
+  .plans-list,
+  .recent-list {
     grid-template-columns: 1fr;
-  }
-  
-  .chart-container {
-    height: 200px;
-  }
-  
-  .welcome-card h2 {
-    font-size: 1.5rem;
   }
 }
 </style> 

@@ -28,7 +28,9 @@
     </header>
     
     <main class="container">
-      <router-view />
+      <transition name="fade" mode="out-in">
+        <router-view />
+      </transition>
     </main>
     
     <footer class="app-footer">
@@ -427,5 +429,16 @@ main {
   border: none;
   border-radius: 3px;
   cursor: pointer;
+}
+
+/* Add the fade transition styles */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style> 
