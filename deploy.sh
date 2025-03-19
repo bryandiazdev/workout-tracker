@@ -75,10 +75,22 @@ if [[ $update_env == "y" || $update_env == "Y" ]]; then
         fi
         
         echo "Adding environment variables to Vercel..."
-        vercel env add VUE_APP_AUTH0_DOMAIN production
-        vercel env add VUE_APP_AUTH0_CLIENT_ID production
-        vercel env add VUE_APP_AUTH0_AUDIENCE production
-        vercel env add VUE_APP_AUTH0_CALLBACK_URL production
+        # Pass values directly to vercel env commands
+        vercel env add VUE_APP_AUTH0_DOMAIN production -y << EOF
+$auth0_domain
+EOF
+
+        vercel env add VUE_APP_AUTH0_CLIENT_ID production -y << EOF
+$auth0_client_id
+EOF
+
+        vercel env add VUE_APP_AUTH0_AUDIENCE production -y << EOF
+$auth0_audience
+EOF
+
+        vercel env add VUE_APP_AUTH0_CALLBACK_URL production -y << EOF
+$auth0_callback_url
+EOF
         
         # Add API URL (this should be /api for compatibility)
         vercel env add VUE_APP_API_URL production -y << EOF
@@ -104,10 +116,39 @@ EOF
     echo "Verifying environment variables..."
     if [ -f WorkoutTracker.Client/.env ]; then
         echo "Local client .env file exists"
-        grep -v '^#' WorkoutTracker.Client/.env | grep -v '^$' | while read -r line; do
-            key=$(echo $line | cut -d= -f1)
-            echo "- $key: [value set]"
-        done
+        echo "Environment variable values (masked for security):"
+        
+        if [ -n "$auth0_domain" ]; then
+            first_part=$(echo "$auth0_domain" | cut -c1-5)
+            echo "- VUE_APP_AUTH0_DOMAIN: $first_part..."
+        else
+            domain_from_file=$(grep "VUE_APP_AUTH0_DOMAIN" WorkoutTracker.Client/.env | cut -d= -f2)
+            first_part=$(echo "$domain_from_file" | cut -c1-5)
+            echo "- VUE_APP_AUTH0_DOMAIN (from file): $first_part..."
+        fi
+        
+        if [ -n "$auth0_client_id" ]; then
+            first_part=$(echo "$auth0_client_id" | cut -c1-5)
+            echo "- VUE_APP_AUTH0_CLIENT_ID: $first_part..."
+        fi
+        
+        if [ -n "$auth0_audience" ]; then
+            first_part=$(echo "$auth0_audience" | cut -c1-5)
+            echo "- VUE_APP_AUTH0_AUDIENCE: $first_part..."
+        fi
+        
+        if [ -n "$auth0_callback_url" ]; then
+            first_part=$(echo "$auth0_callback_url" | cut -c1-10)
+            echo "- VUE_APP_AUTH0_CALLBACK_URL: $first_part..."
+        fi
+        
+        echo ""
+        echo "Confirm these values are correct before continuing."
+        read -p "Continue with deployment? (y/n): " continue_deploy
+        if [[ $continue_deploy != "y" && $continue_deploy != "Y" ]]; then
+            echo "Deployment cancelled. Please update your environment variables and try again."
+            exit 1
+        fi
     else
         echo "Warning: Local client .env file not found."
     fi
