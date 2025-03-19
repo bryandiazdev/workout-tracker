@@ -1,1 +1,11 @@
-{"version":2,"buildCommand":"./build.sh","outputDirectory":"WorkoutTracker.Client/dist","routes":[{"handle":"filesystem"},{"src":"/callback(.*)","dest":"/index.html"},{"src":"/api/(.*)","dest":"/api/index.js"},{"src":"/(.*)","dest":"/index.html"}]}
+{
+  "version": 2,
+  "buildCommand": "./build.sh",
+  "outputDirectory": "WorkoutTracker.Client/dist",
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/callback(.*)", "dest": "/index.html" },
+    { "src": "/api/(.*)", "dest": "/api/index.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
