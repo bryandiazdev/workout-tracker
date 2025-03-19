@@ -56,7 +56,13 @@ if [[ $update_env == "y" || $update_env == "Y" ]]; then
         read -p "Auth0 Domain: " auth0_domain
         read -p "Auth0 Client ID: " auth0_client_id
         read -p "Auth0 Audience: " auth0_audience
-        read -p "Auth0 Callback URL (e.g., https://workout-tracker-rose.vercel.app/callback): " auth0_callback_url
+        read -p "Auth0 Callback URL (default: https://workout-tracker-rose.vercel.app/callback): " auth0_callback_url
+        
+        # Use default callback URL if empty
+        if [ -z "$auth0_callback_url" ]; then
+            auth0_callback_url="https://workout-tracker-rose.vercel.app/callback"
+            echo "Using default callback URL: $auth0_callback_url"
+        fi
         
         echo "Adding environment variables to Vercel..."
         vercel env add VUE_APP_AUTH0_DOMAIN production
@@ -94,4 +100,5 @@ echo ""
 echo "Deployment completed!"
 echo "Your application should be available at: https://workout-tracker-rose.vercel.app"
 echo ""
-echo "NOTE: If you see any authentication or API errors, make sure your environment variables are set correctly." 
+echo "NOTE: If you see any authentication or API errors, make sure your environment variables are set correctly."
+echo "IMPORTANT: Ensure that your Auth0 application's Allowed Callback URLs include: https://workout-tracker-rose.vercel.app/callback" 
