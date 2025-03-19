@@ -60,9 +60,12 @@ class AuthService {
     const state = this.generateRandomString();
     localStorage.setItem('auth_state', state);
     
+    // Generate a nonce for OIDC security
+    const nonce = this.generateRandomString();
+    
     console.log('Auth0 config being used:', {
       domain: this.auth0.baseOptions.domain,
-      clientID: this.auth0.baseOptions.clientID,
+      clientID: this.auth0.baseOptions.clientID ? '✓ Set (hidden)' : '✗ Not set',
       redirectUri: this.auth0.baseOptions.redirectUri,
       audience: this.auth0.baseOptions.audience,
       responseType: this.auth0.baseOptions.responseType,
@@ -72,7 +75,7 @@ class AuthService {
     
     DebugService.logAuth('Auth0 configuration for login', {
       domain: this.auth0.baseOptions.domain,
-      clientIDLength: this.auth0.baseOptions.clientID.length, // For security, only log the length
+      clientIDLength: this.auth0.baseOptions.clientID ? this.auth0.baseOptions.clientID.length : 0, // For security, only log the length
       redirectUri: this.auth0.baseOptions.redirectUri,
       audience: this.auth0.baseOptions.audience,
       responseType: this.auth0.baseOptions.responseType,
@@ -80,19 +83,11 @@ class AuthService {
       state: state.substring(0, 5) + '...' // Log partial state for debugging
     });
     
-    // Create authorization URL directly instead of using authorize()
-    const authUrl = `https://${process.env.VUE_APP_AUTH0_DOMAIN}/authorize` +
-      `?client_id=${process.env.VUE_APP_AUTH0_CLIENT_ID}` +
-      `&response_type=token id_token` +
-      `&redirect_uri=${encodeURIComponent(this.auth0.baseOptions.redirectUri)}` +
-      `&scope=openid profile email` +
-      `&audience=${encodeURIComponent(process.env.VUE_APP_AUTH0_AUDIENCE)}` +
-      `&state=${state}` +
-      `&nonce=${this.generateRandomString()}`;
-    
-    console.log('Redirecting to Auth0 login page with URL:', authUrl);
-    DebugService.logAuth('Redirecting to Auth0 login page');
-    window.location.href = authUrl;
+    // Use the built-in authorize method instead of constructing URL manually
+    this.auth0.authorize({
+      state: state,
+      nonce: nonce
+    });
   }
   
   // Helper method to generate a random string for state parameter
