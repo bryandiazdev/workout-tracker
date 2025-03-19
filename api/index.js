@@ -41,6 +41,14 @@ module.exports = async (req, res) => {
   console.log(`Routing request to endpoint: ${endpoint}`);
   
   try {
+    // Special case for workout plan exercises
+    if (segments.length >= 3 && 
+        (segments[1].toLowerCase() === 'workoutplans' || segments[1].toLowerCase() === 'workoutplans') && 
+        segments[3] && segments[3].toLowerCase() === 'exercises') {
+      console.log('Handling workout plan exercise operation');
+      return await handleWorkoutPlanExercises(req, res, segments);
+    }
+    
     // Route to the appropriate handler based on the endpoint
     switch (endpoint) {
       case 'goals':
@@ -838,4 +846,213 @@ async function handleEnvTest(req, res) {
     envStatus,
     allVariables: Object.keys(process.env)
   });
+}
+
+// Workout Plan Exercises handler for operations on exercises within a plan
+async function handleWorkoutPlanExercises(req, res, segments) {
+  try {
+    // Extract user ID from token
+    const userId = await extractUserId(req);
+    
+    // Extract plan ID from URL path
+    // URL pattern would be: /api/workoutplans/{planId}/exercises
+    // OR for a specific exercise: /api/workoutplans/{planId}/exercises/{exerciseId}
+    if (segments.length < 3) {
+      return res.status(400).json({ message: "Invalid URL format. Expected /api/workoutplans/{planId}/exercises" });
+    }
+    
+    // Handle potential "api" prefix in segments
+    let planIdIndex = 1;
+    if (segments[0].toLowerCase() === 'api') {
+      planIdIndex = 2;
+    }
+    
+    const planId = segments[planIdIndex];
+    console.log(`Processing exercises for workout plan ${planId} for user ${userId}`);
+    
+    if (!planId || !ObjectId.isValid(planId)) {
+      return res.status(400).json({ message: "Invalid workout plan ID" });
+    }
+    
+    // Connect to database
+    const { db } = await connectToDatabase();
+    const collection = db.collection('workout_plans');
+    
+    // First, check if the plan exists and belongs to the user
+    const plan = await collection.findOne({
+      _id: new ObjectId(planId),
+      userId
+    });
+    
+    if (!plan) {
+      return res.status(404).json({ message: "Workout plan not found or not accessible" });
+    }
+    
+    // Check if the plan already has an exercises array
+    if (!plan.exercises) {
+      plan.exercises = [];
+    }
+    
+    // Check if we're dealing with a specific exercise
+    const hasExerciseId = segments.length > planIdIndex + 2;
+    let exerciseId = null;
+    
+    if (hasExerciseId) {
+      exerciseId = segments[planIdIndex + 2];
+      console.log(`Operating on specific exercise ${exerciseId}`);
+    }
+    
+    // Handle different HTTP methods
+    if (req.method === 'GET') {
+      if (hasExerciseId) {
+        // Get a specific exercise
+        const exercise = plan.exercises.find(e => e.id === exerciseId);
+        if (!exercise) {
+          return res.status(404).json({ message: "Exercise not found" });
+        }
+        return res.status(200).json(exercise);
+      } else {
+        // Get all exercises for the plan
+        return res.status(200).json({
+          planId: plan._id.toString(),
+          exercises: plan.exercises
+        });
+      }
+    } else if (req.method === 'POST') {
+      // Add a new exercise to the plan
+      let exerciseData;
+      if (typeof req.body === 'string') {
+        exerciseData = JSON.parse(req.body);
+      } else {
+        exerciseData = req.body;
+      }
+      
+      console.log('Adding exercise to workout plan:', JSON.stringify(exerciseData));
+      
+      // Validate exercise data
+      if (!exerciseData.name) {
+        return res.status(400).json({ message: "Exercise name is required" });
+      }
+      
+      // Create a new exercise with an ID and timestamp
+      const newExercise = {
+        id: new ObjectId().toString(), // Generate a unique ID for the exercise
+        name: exerciseData.name,
+        description: exerciseData.description || '',
+        sets: exerciseData.sets || 3,
+        reps: exerciseData.reps || 10,
+        weight: exerciseData.weight || null,
+        weightUnit: exerciseData.weightUnit || 'kg',
+        duration: exerciseData.duration || null,
+        notes: exerciseData.notes || '',
+        muscleGroups: exerciseData.muscleGroups || [],
+        createdDate: new Date().toISOString()
+      };
+      
+      // Update the workout plan with the new exercise
+      const result = await collection.updateOne(
+        { _id: new ObjectId(planId), userId },
+        { 
+          $push: { exercises: newExercise },
+          $set: { updatedAt: new Date().toISOString() }
+        }
+      );
+      
+      if (result.modifiedCount === 0) {
+        return res.status(500).json({ message: "Failed to add exercise to workout plan" });
+      }
+      
+      console.log(`Successfully added exercise to plan ${planId}`);
+      return res.status(201).json({
+        message: "Exercise added successfully",
+        exercise: newExercise
+      });
+    } else if (req.method === 'PUT' && hasExerciseId) {
+      // Update an existing exercise
+      let exerciseData;
+      if (typeof req.body === 'string') {
+        exerciseData = JSON.parse(req.body);
+      } else {
+        exerciseData = req.body;
+      }
+      
+      console.log(`Updating exercise ${exerciseId} in workout plan ${planId}`);
+      
+      // Find the exercise index
+      const exerciseIndex = plan.exercises.findIndex(e => e.id === exerciseId);
+      if (exerciseIndex === -1) {
+        return res.status(404).json({ message: "Exercise not found" });
+      }
+      
+      // Create updated exercise object
+      const updatedExercise = {
+        ...plan.exercises[exerciseIndex],
+        ...exerciseData,
+        id: exerciseId, // Preserve the original ID
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Update the exercise in the array
+      const updatePath = `exercises.${exerciseIndex}`;
+      const updateObj = { [updatePath]: updatedExercise };
+      
+      const result = await collection.updateOne(
+        { _id: new ObjectId(planId), userId },
+        { 
+          $set: {
+            ...updateObj,
+            updatedAt: new Date().toISOString()
+          }
+        }
+      );
+      
+      if (result.modifiedCount === 0) {
+        return res.status(500).json({ message: "Failed to update exercise" });
+      }
+      
+      console.log(`Successfully updated exercise ${exerciseId}`);
+      return res.status(200).json({
+        message: "Exercise updated successfully",
+        exercise: updatedExercise
+      });
+    } else if (req.method === 'DELETE' && hasExerciseId) {
+      // Remove an exercise from the plan
+      console.log(`Removing exercise ${exerciseId} from workout plan ${planId}`);
+      
+      // Check if the exercise exists
+      const exerciseExists = plan.exercises.some(e => e.id === exerciseId);
+      if (!exerciseExists) {
+        return res.status(404).json({ message: "Exercise not found" });
+      }
+      
+      // Remove the exercise
+      const result = await collection.updateOne(
+        { _id: new ObjectId(planId), userId },
+        { 
+          $pull: { exercises: { id: exerciseId } },
+          $set: { updatedAt: new Date().toISOString() }
+        }
+      );
+      
+      if (result.modifiedCount === 0) {
+        return res.status(500).json({ message: "Failed to remove exercise" });
+      }
+      
+      console.log(`Successfully removed exercise ${exerciseId} from plan ${planId}`);
+      return res.status(200).json({
+        message: "Exercise removed successfully"
+      });
+    }
+    
+    return res.status(405).json({ message: `Method ${req.method} not allowed` });
+  } catch (error) {
+    console.error('Error handling workout plan exercises:', error);
+    if (error.message === 'Missing or invalid authorization token') {
+      return res.status(401).json({ message: error.message });
+    }
+    return res.status(500).json({ 
+      message: "Error processing workout plan exercises", 
+      error: error.message 
+    });
+  }
 } 
