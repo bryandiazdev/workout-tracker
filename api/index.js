@@ -7,8 +7,6 @@ const { connectToDatabase } = require('./db');
 const { ObjectId } = require('mongodb');
 
 module.exports = async (req, res) => {
-  console.log(`Unified API handler received ${req.method} request for: ${req.url}`);
-  
   // Enable CORS for all routes
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -23,8 +21,6 @@ module.exports = async (req, res) => {
   const path = req.url.split('?')[0]; // Remove query string if present
   const segments = path.split('/').filter(Boolean);
   
-  console.log('URL segments:', segments);
-  
   // Extract the endpoint name (lowercase for consistency)
   // Fix: Check if the first segment is 'api', if so use the second segment as the endpoint
   let endpoint = '';
@@ -32,15 +28,11 @@ module.exports = async (req, res) => {
     if (segments[0].toLowerCase() === 'api' && segments.length > 1) {
       // If URL contains /api/endpoint format
       endpoint = segments[1].toLowerCase();
-      console.log(`Found API prefix in URL, using second segment as endpoint: ${endpoint}`);
     } else {
       // If URL is just /endpoint format (no /api/ prefix)
       endpoint = segments[0].toLowerCase();
-      console.log(`No API prefix in URL, using first segment as endpoint: ${endpoint}`);
     }
   }
-
-  console.log(`Routing request to endpoint: ${endpoint}`);
   
   try {
     // Special case for workout plan exercises
@@ -51,7 +43,6 @@ module.exports = async (req, res) => {
         (segments.length >= 2 &&
         segments[0].toLowerCase() === 'workoutplans' &&
         segments[2] && segments[2].toLowerCase() === 'exercises')) {
-      console.log('Handling workout plan exercise operation');
       return await handleWorkoutPlanExercises(req, res, segments);
     }
     
@@ -106,7 +97,6 @@ module.exports = async (req, res) => {
         
       default:
         // If no matching endpoint is found
-        console.log(`No handler found for endpoint: ${endpoint}`);
         return res.status(404).json({
           message: `Endpoint '${endpoint}' not found`,
           note: "API has been consolidated to work within Vercel's function limits",
@@ -115,7 +105,6 @@ module.exports = async (req, res) => {
         });
     }
   } catch (error) {
-    console.error(`Error handling request to ${endpoint}:`, error);
     return res.status(500).json({
       message: "An error occurred processing your request",
       error: error.message
@@ -128,16 +117,13 @@ async function handleGoalsGet(req, res) {
   try {
     // Extract user ID from token
     const userId = await extractUserId(req);
-    console.log('Getting goals for user:', userId);
     
     // Connect to database
     const { db } = await connectToDatabase();
     const collection = db.collection('goals');
     
     // Get all goals for the user
-    console.log('Querying goals collection with userId:', userId);
     const goals = await collection.find({ userId }).toArray();
-    console.log(`Found ${goals.length} goals for user ${userId}`);
     
     // Format goals to match expected client format
     const formattedGoals = goals.map(goal => ({
@@ -153,15 +139,12 @@ async function handleGoalsGet(req, res) {
       targetValue: goal.TargetValue || goal.targetValue || 0
     }));
     
-    console.log('Formatted goals for response:', formattedGoals);
-    
     // Return in the format expected by the client
     return res.status(200).json({
       $id: "1",
       $values: formattedGoals
     });
   } catch (error) {
-    console.error('Error retrieving goals:', error);
     if (error.message === 'Missing or invalid authorization token') {
       return res.status(401).json({ message: error.message });
     }
@@ -185,11 +168,8 @@ async function extractUserId(req) {
     // Simple JWT parsing to extract sub claim
     const token = authHeader.split(' ')[1];
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    console.log('Extracted token payload:', payload);
     userId = payload.sub || 'user-123';
-    console.log('Using userId from token:', userId);
   } catch (error) {
-    console.warn('Error parsing token, using default userId:', error.message);
     userId = 'user-123'; // Fallback ID
   }
   
@@ -201,7 +181,6 @@ async function handleWorkoutLogs(req, res) {
   try {
     // Extract user ID from token
     const userId = await extractUserId(req);
-    console.log('Processing workout logs for user:', userId);
     
     // Connect to database
     const { db } = await connectToDatabase();
@@ -210,14 +189,10 @@ async function handleWorkoutLogs(req, res) {
     // Handle different HTTP methods
     if (req.method === 'GET') {
       // Get all workout logs for the user
-      console.log('Fetching workout logs from MongoDB');
       const logs = await collection.find({ userId }).toArray();
-      console.log(`Found ${logs.length} workout logs for user ${userId}`);
       
       // Format the logs for the frontend
       const formattedLogs = logs.map(log => {
-        console.log('Processing log:', JSON.stringify(log));
-        
         // Handle both nested and flat structures
         let formattedLog = {
           id: log._id.toString()
@@ -260,15 +235,11 @@ async function handleWorkoutLogs(req, res) {
             formattedLog.durationMinutes = 0;
           }
         } catch (e) {
-          console.error('Error parsing duration:', e);
           formattedLog.durationMinutes = 0;
         }
         
-        console.log('Formatted log:', JSON.stringify(formattedLog));
         return formattedLog;
       });
-      
-      console.log(`Returning ${formattedLogs.length} formatted workout logs`);
       
       return res.status(200).json({
         $id: "1",
@@ -282,8 +253,6 @@ async function handleWorkoutLogs(req, res) {
       } else {
         logData = req.body;
       }
-      
-      console.log('Creating new workout log with data:', JSON.stringify(logData));
       
       // Extract the main workout data if it's nested
       const workoutLogData = logData.workoutLog || logData;
@@ -304,9 +273,7 @@ async function handleWorkoutLogs(req, res) {
         createdDate: new Date().toISOString()
       };
       
-      console.log('Saving workout log to MongoDB:', JSON.stringify(newLog));
       const result = await collection.insertOne(newLog);
-      console.log('Workout log saved with ID:', result.insertedId);
       
       return res.status(201).json({
         ...newLog,
@@ -383,7 +350,6 @@ async function handleWorkoutLogs(req, res) {
     
     return res.status(405).json({ message: `Method ${req.method} not allowed` });
   } catch (error) {
-    console.error('Error handling workout logs:', error);
     if (error.message === 'Missing or invalid authorization token') {
       return res.status(401).json({ message: error.message });
     }
@@ -396,7 +362,6 @@ async function handleWorkoutPlans(req, res) {
   try {
     // Extract user ID from token
     const userId = await extractUserId(req);
-    console.log('Processing workout plans for user:', userId);
     
     // Connect to database
     const { db } = await connectToDatabase();
@@ -405,14 +370,10 @@ async function handleWorkoutPlans(req, res) {
     // Handle different HTTP methods
     if (req.method === 'GET') {
       // Get all workout plans for the user
-      console.log('Fetching workout plans from MongoDB');
       const plans = await collection.find({ userId }).toArray();
-      console.log(`Found ${plans.length} workout plans for user ${userId}`);
       
       // Format the plans for the frontend
       const formattedPlans = plans.map(plan => {
-        console.log('Processing plan:', JSON.stringify(plan));
-        
         // Create a formatted plan object with consistent property names
         const formattedPlan = {
           ...plan,
@@ -426,11 +387,8 @@ async function handleWorkoutPlans(req, res) {
           createdAt: plan.createdDate || plan.createdAt || new Date().toISOString()
         };
         
-        console.log('Formatted plan:', JSON.stringify(formattedPlan));
         return formattedPlan;
       });
-      
-      console.log(`Returning ${formattedPlans.length} formatted workout plans`);
       
       return res.status(200).json({
         $id: "1",
@@ -445,8 +403,6 @@ async function handleWorkoutPlans(req, res) {
         planData = req.body;
       }
       
-      console.log('Creating new workout plan with data:', JSON.stringify(planData));
-      
       // Normalize the plan data
       const newPlan = {
         name: planData.name || planData.Name || 'Unnamed Workout Plan',
@@ -456,9 +412,7 @@ async function handleWorkoutPlans(req, res) {
         createdDate: new Date().toISOString()
       };
       
-      console.log('Saving workout plan to MongoDB:', JSON.stringify(newPlan));
       const result = await collection.insertOne(newPlan);
-      console.log('Workout plan saved with ID:', result.insertedId);
       
       return res.status(201).json({
         ...newPlan,
@@ -526,7 +480,6 @@ async function handleWorkoutPlans(req, res) {
     
     return res.status(405).json({ message: `Method ${req.method} not allowed` });
   } catch (error) {
-    console.error('Error handling workout plans:', error);
     if (error.message === 'Missing or invalid authorization token') {
       return res.status(401).json({ message: error.message });
     }
@@ -603,7 +556,6 @@ async function handleUsers(req, res) {
     
     return res.status(405).json({ message: `Method ${req.method} not allowed` });
   } catch (error) {
-    console.error('Error handling users:', error);
     if (error.message === 'Missing or invalid authorization token') {
       return res.status(401).json({ message: error.message });
     }
@@ -654,7 +606,6 @@ async function handleStats(req, res) {
       });
     }
   } catch (error) {
-    console.error('Error handling stats:', error);
     if (error.message === 'Missing or invalid authorization token') {
       return res.status(401).json({ message: error.message });
     }
@@ -715,8 +666,6 @@ async function handleMongoDBTest(req, res) {
     return res.status(405).json({ message: 'Method not allowed' });
   }
   
-  console.log('MongoDB test endpoint called');
-  
   // Check MONGODB_URI
   const uri = process.env.MONGODB_URI;
   const hasMongoDB = !!uri;
@@ -756,8 +705,6 @@ async function handleMongoDBTest(req, res) {
       const url = new URL(uri);
       const pathName = url.pathname ? url.pathname.substring(1) : null;
       testResults.database_name = db.databaseName;
-      console.log('Database name from URL:', pathName);
-      console.log('Actual database name:', db.databaseName);
     } catch (error) {
       console.error('Error extracting database name:', error);
     }
@@ -770,7 +717,6 @@ async function handleMongoDBTest(req, res) {
         success: true,
         collections: collections.map(c => c.name)
       };
-      console.log('Collections:', collections.map(c => c.name).join(', '));
     } catch (error) {
       console.error('Error listing collections:', error);
       testResults.list_collections = {
@@ -794,11 +740,9 @@ async function handleMongoDBTest(req, res) {
         success: true,
         inserted_id: result.insertedId.toString()
       };
-      console.log('Test document inserted with ID:', result.insertedId);
       
       // Clean up by removing the test document
       await testCollection.deleteOne({ _id: result.insertedId });
-      console.log('Test document deleted');
     } catch (error) {
       console.error('Error in test insert:', error);
       testResults.test_insert = {
@@ -812,7 +756,6 @@ async function handleMongoDBTest(req, res) {
       results: testResults
     });
   } catch (error) {
-    console.error('MongoDB test failed:', error);
     testResults.error = error.message;
     testResults.connection_test = {
       success: false,
@@ -847,10 +790,6 @@ async function handleEnvTest(req, res) {
     }
   };
   
-  // Log environment variable status (for debugging)
-  console.log('Environment variable status:', JSON.stringify(envStatus, null, 2));
-  console.log('All environment variable names:', Object.keys(process.env).join(', '));
-  
   // Return the environment status
   return res.status(200).json({
     message: 'Environment variable check',
@@ -862,9 +801,6 @@ async function handleEnvTest(req, res) {
 // Handle direct requests to the Exercises endpoint
 async function handleExercises(req, res) {
   try {
-    console.log('Handling direct request to Exercises endpoint');
-    console.log(`Method: ${req.method}, URL: ${req.url}`);
-    
     // Extract user ID from token
     const userId = await extractUserId(req);
     
@@ -878,14 +814,10 @@ async function handleExercises(req, res) {
         exerciseData = req.body;
       }
       
-      console.log('Exercise data received:', JSON.stringify(exerciseData));
-      
       // Check if a workout plan ID is included - handle case insensitivity
       const workoutPlanId = exerciseData.workoutPlanId || exerciseData.WorkoutPlanId || exerciseData.planId || exerciseData.PlanId;
       
       if (workoutPlanId) {
-        console.log(`Workout plan ID found: ${workoutPlanId}, forwarding to workout plan exercises handler`);
-        
         // Connect to database to check if the plan exists
         const { db } = await connectToDatabase();
         const collection = db.collection('workout_plans');
@@ -924,8 +856,6 @@ async function handleExercises(req, res) {
       }
       
       // If no plan ID is provided, create a standalone exercise in a dedicated collection
-      console.log('No workout plan ID found, creating standalone exercise');
-      
       // Handle case sensitivity for exercise properties
       const exerciseName = exerciseData.name || exerciseData.Name;
       
@@ -953,7 +883,6 @@ async function handleExercises(req, res) {
         createdDate: new Date().toISOString()
       };
       
-      console.log('Creating standalone exercise:', JSON.stringify(newExercise));
       const result = await collection.insertOne(newExercise);
       
       return res.status(201).json({
@@ -993,8 +922,6 @@ async function handleExercises(req, res) {
         ...planExercises
       ];
       
-      console.log(`Returning ${allExercises.length} exercises (${standaloneExercises.length} standalone, ${planExercises.length} from plans)`);
-      
       return res.status(200).json({
         $id: "1",
         $values: allExercises
@@ -1006,7 +933,6 @@ async function handleExercises(req, res) {
       note: "The Exercises endpoint currently supports GET (to list exercises) and POST (to create exercises)"
     });
   } catch (error) {
-    console.error('Error handling exercises:', error);
     if (error.message === 'Missing or invalid authorization token') {
       return res.status(401).json({ message: error.message });
     }
@@ -1020,8 +946,6 @@ async function handleExercises(req, res) {
 // Workout Plan Exercises handler for operations on exercises within a plan
 async function handleWorkoutPlanExercises(req, res, segments) {
   try {
-    console.log('Handling workout plan exercises with segments:', segments);
-    
     // Extract user ID from token
     const userId = await extractUserId(req);
     
@@ -1050,7 +974,6 @@ async function handleWorkoutPlanExercises(req, res, segments) {
     }
     
     const planId = segments[planIdIndex];
-    console.log(`Processing exercises for workout plan ${planId} for user ${userId}`);
     
     if (!planId || !ObjectId.isValid(planId)) {
       return res.status(400).json({ message: "Invalid workout plan ID" });
@@ -1081,7 +1004,6 @@ async function handleWorkoutPlanExercises(req, res, segments) {
     
     if (hasExerciseId) {
       exerciseId = segments[exerciseIdIndex];
-      console.log(`Operating on specific exercise ${exerciseId}`);
     }
     
     // Handle different HTTP methods
@@ -1108,8 +1030,6 @@ async function handleWorkoutPlanExercises(req, res, segments) {
       } else {
         exerciseData = req.body;
       }
-      
-      console.log('Adding exercise to workout plan:', JSON.stringify(exerciseData));
       
       // Handle case sensitivity for exercise properties
       const exerciseName = exerciseData.name || exerciseData.Name;
@@ -1147,7 +1067,6 @@ async function handleWorkoutPlanExercises(req, res, segments) {
         return res.status(500).json({ message: "Failed to add exercise to workout plan" });
       }
       
-      console.log(`Successfully added exercise to plan ${planId}`);
       return res.status(201).json({
         message: "Exercise added successfully",
         exercise: newExercise
@@ -1160,8 +1079,6 @@ async function handleWorkoutPlanExercises(req, res, segments) {
       } else {
         exerciseData = req.body;
       }
-      
-      console.log(`Updating exercise ${exerciseId} in workout plan ${planId}`);
       
       // Find the exercise index
       const exerciseIndex = plan.exercises.findIndex(e => e.id === exerciseId);
@@ -1195,15 +1112,12 @@ async function handleWorkoutPlanExercises(req, res, segments) {
         return res.status(500).json({ message: "Failed to update exercise" });
       }
       
-      console.log(`Successfully updated exercise ${exerciseId}`);
       return res.status(200).json({
         message: "Exercise updated successfully",
         exercise: updatedExercise
       });
     } else if (req.method === 'DELETE' && hasExerciseId) {
       // Remove an exercise from the plan
-      console.log(`Removing exercise ${exerciseId} from workout plan ${planId}`);
-      
       // Check if the exercise exists
       const exerciseExists = plan.exercises.some(e => e.id === exerciseId);
       if (!exerciseExists) {
@@ -1223,7 +1137,6 @@ async function handleWorkoutPlanExercises(req, res, segments) {
         return res.status(500).json({ message: "Failed to remove exercise" });
       }
       
-      console.log(`Successfully removed exercise ${exerciseId} from plan ${planId}`);
       return res.status(200).json({
         message: "Exercise removed successfully"
       });
@@ -1231,7 +1144,6 @@ async function handleWorkoutPlanExercises(req, res, segments) {
     
     return res.status(405).json({ message: `Method ${req.method} not allowed` });
   } catch (error) {
-    console.error('Error handling workout plan exercises:', error);
     if (error.message === 'Missing or invalid authorization token') {
       return res.status(401).json({ message: error.message });
     }
