@@ -42,59 +42,55 @@
       </div>
       
       <div v-else class="goals-list">
-        <div v-for="goal in goals" :key="goal.id" class="goal-card card">
-          <div class="card-header">
-            <div class="goal-status" :class="getGoalStatusClass(goal)">
-              {{ getGoalStatusText(goal) }}
-            </div>
-            <div class="goal-actions">
-              <button class="btn-icon" @click="editGoal(goal)">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button class="btn-icon" @click="confirmDeleteGoal(goal.id)">
-                <i class="fas fa-trash-alt"></i>
-              </button>
-            </div>
+        <div v-for="goal in goals" :key="goal.id || goal._id" class="goal-card">
+          <div class="goal-status">
+            <span v-if="goal.IsCompleted || goal.isCompleted" class="status-badge completed">Completed</span>
+            <span v-else class="status-badge in-progress">In Progress</span>
           </div>
-          
-          <div class="card-body">
-            <h3 class="goal-title">{{ goal.name }}</h3>
-            <p class="goal-description">{{ goal.description }}</p>
-            
-            <div class="goal-dates">
-              <div class="goal-date">
-                <i class="fas fa-hourglass-start"></i>
-                <span>Start: {{ formatDate(goal.startDate) }}</span>
-              </div>
-              <div class="goal-date">
-                <i class="fas fa-hourglass-end"></i>
-                <span>Target: {{ formatDate(goal.targetDate) }}</span>
-              </div>
-            </div>
+
+          <div class="goal-details">
+            <h3>{{ goal.Name || goal.name }}</h3>
+            <p class="goal-description">{{ goal.Description || goal.description }}</p>
             
             <div class="goal-metrics">
               <div class="goal-metric">
-                <div class="metric-label">{{ getMetricLabel(goal.metricType) }}</div>
-                <div class="metric-progress">
-                  <div class="progress-bar">
-                    <div 
-                      class="progress-fill" 
-                      :class="getProgressClass(goal)" 
-                      :style="{ width: getProgressPercentage(goal) + '%' }"
-                    ></div>
-                  </div>
-                  <div class="progress-text">
-                    {{ goal.currentValue }} / {{ goal.targetValue }} {{ getMetricUnit(goal.metricType) }}
-                  </div>
-                </div>
+                <span class="metric-label">Target:</span>
+                <span class="metric-value">{{ goal.TargetValue || goal.targetValue }} {{ goal.Unit || goal.unit }}</span>
+              </div>
+              
+              <div class="goal-metric">
+                <span class="metric-label">Current:</span>
+                <span class="metric-value">{{ goal.CurrentValue || goal.currentValue || 0 }} {{ goal.Unit || goal.unit }}</span>
               </div>
             </div>
             
-            <div class="goal-update">
-              <button class="btn btn-secondary" @click="showUpdateForm(goal)">
-                Update Progress
-              </button>
+            <div class="goal-dates">
+              <div class="goal-date">
+                <span class="date-label">Start:</span>
+                <span class="date-value">{{ formatDate(goal.StartDate || goal.startDate) }}</span>
+              </div>
+              
+              <div class="goal-date">
+                <span class="date-label">Target:</span>
+                <span class="date-value">{{ formatDate(goal.TargetDate || goal.targetDate) }}</span>
+              </div>
             </div>
+            
+            <div class="goal-progress">
+              <div class="progress-bar">
+                <div class="progress-fill" :style="{ width: getProgressPercentage(goal) + '%' }"></div>
+              </div>
+              <div class="progress-labels">
+                <span class="progress-start">{{ goal.StartingValue || goal.startingValue || 0 }}</span>
+                <span class="progress-percentage">{{ Math.round(getProgressPercentage(goal)) }}%</span>
+                <span class="progress-target">{{ goal.TargetValue || goal.targetValue }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="goal-actions">
+            <button class="btn btn-primary" @click="editGoal(goal)">Edit</button>
+            <button class="btn btn-danger" @click="deleteGoal(goal)">Delete</button>
           </div>
         </div>
       </div>
@@ -423,23 +419,24 @@ export default {
     },
     
     editGoal(goal) {
+      console.log('Editing goal:', goal);
       this.isEditing = true;
       
-      // Deep copy the goal data to avoid modifying the store directly
       this.goalForm = {
-        id: goal.id,
-        name: goal.name,
-        description: goal.description || '',
-        startDate: this.formatDateForInput(goal.startDate),
-        targetDate: this.formatDateForInput(goal.targetDate),
-        metricType: goal.metricType,
-        startingValue: goal.startingValue,
-        currentValue: goal.currentValue,
-        targetValue: goal.targetValue,
-        unit: goal.unit || this.getMetricUnit(goal.metricType),
-        isCompleted: goal.isCompleted || false
+        id: goal.Id || goal._id || goal.id,
+        name: goal.Name || goal.name || '',
+        description: goal.Description || goal.description || '',
+        metricType: goal.MetricType || goal.metricType || 'weight',
+        unit: goal.Unit || goal.unit || 'kg',
+        startingValue: goal.StartingValue || goal.startingValue || 0,
+        currentValue: goal.CurrentValue || goal.currentValue || 0,
+        targetValue: goal.TargetValue || goal.targetValue || 0,
+        startDate: this.formatDateForInput(goal.StartDate || goal.startDate),
+        targetDate: this.formatDateForInput(goal.TargetDate || goal.targetDate),
+        isCompleted: goal.IsCompleted || goal.isCompleted || false
       };
       
+      console.log('Goal form data:', this.goalForm);
       this.showGoalForm = true;
     },
     
@@ -468,146 +465,110 @@ export default {
     
     async saveGoal() {
       try {
-        // Ensure there's no trailing whitespace in text fields
-        this.goalForm.name = this.goalForm.name.trim();
-        if (this.goalForm.description) {
-          this.goalForm.description = this.goalForm.description.trim();
-        }
+        this.isSaving = true;
         
-        // Basic validation
-        if (!this.goalForm.name) {
-          NotificationService.showError('Goal name is required');
-          return;
-        }
+        // Format dates properly
+        const startDate = this.formatDateForAPI(this.goalForm.startDate);
+        const targetDate = this.formatDateForAPI(this.goalForm.targetDate);
         
-        if (!this.goalForm.targetValue) {
-          NotificationService.showError('Target value is required');
-          return;
-        }
-        
-        // Format the goal data with proper capitalization for the API
-        const formattedGoal = {
-          Id: this.isEditing ? (this.goalForm.id || null) : null,
+        // Create goal data object with proper uppercase property names
+        const goalData = {
+          Id: this.goalForm.id,
           Name: this.goalForm.name,
-          Description: this.goalForm.description || 'Goal created via workout tracker',
-          StartDate: this.formatDateForApi(this.goalForm.startDate),
-          TargetDate: this.formatDateForApi(this.goalForm.targetDate),
-          StartingValue: parseFloat(this.goalForm.startingValue) || 0,
-          CurrentValue: parseFloat(this.goalForm.currentValue) || 0,
-          TargetValue: parseFloat(this.goalForm.targetValue) || 0,
+          Description: this.goalForm.description,
           MetricType: this.goalForm.metricType,
           Unit: this.goalForm.unit,
-          IsCompleted: this.goalForm.isCompleted || false
+          StartingValue: parseFloat(this.goalForm.startingValue),
+          CurrentValue: parseFloat(this.goalForm.currentValue),
+          TargetValue: parseFloat(this.goalForm.targetValue),
+          StartDate: startDate,
+          TargetDate: targetDate,
+          IsCompleted: this.goalForm.isCompleted
         };
         
-        // Get the user ID
-        try {
-          const userProfile = localStorage.getItem('user_profile');
-          if (userProfile) {
-            const profile = JSON.parse(userProfile);
-            formattedGoal.User = { Auth0Id: profile.sub || profile.email };
-          } else {
-            // Try to get it from the auth token
-            const token = localStorage.getItem('auth_token');
-            if (token) {
-              try {
-                const parts = token.split('.');
-                if (parts.length === 3) {
-                  const payload = JSON.parse(atob(parts[1]));
-                  formattedGoal.User = { Auth0Id: payload.sub };
-                }
-              } catch (e) {
-                console.error('Error extracting user ID from token:', e);
-              }
-            }
-          }
-        } catch (e) {
-          console.error('Error setting user ID:', e);
-        }
+        console.log('Saving goal with data:', goalData);
         
-        // Log the goal data for debugging
-        console.log(`${this.isEditing ? 'Updating' : 'Creating'} goal with data:`, formattedGoal);
-        
-        // Call the appropriate store action based on whether we're editing or creating
-        if (this.isEditing && formattedGoal.Id) {
-          await this.$store.dispatch('updateGoal', formattedGoal);
-          NotificationService.showSuccess('Goal updated successfully');
+        if (this.isEditing && this.goalForm.id) {
+          // Update existing goal
+          console.log(`Updating goal with ID: ${this.goalForm.id}`);
+          await this.$store.dispatch('updateGoal', goalData);
+          this.$store.dispatch('showMessage', {
+            message: 'Goal updated successfully!',
+            type: 'success'
+          });
         } else {
-          await this.$store.dispatch('createGoal', formattedGoal);
-          NotificationService.showSuccess('Goal created successfully');
+          // Create new goal
+          console.log('Creating new goal');
+          await this.$store.dispatch('createGoal', goalData);
+          this.$store.dispatch('showMessage', {
+            message: 'Goal created successfully!',
+            type: 'success'
+          });
         }
         
-        // Close the form and reset it
         this.closeForm();
-        
-        // Reload goals to ensure we have the latest data
-        await this.$store.dispatch('fetchGoals');
+        this.loadData();
       } catch (error) {
         console.error('Error saving goal:', error);
-        
-        // Provide more specific error message if possible
-        if (error.status === 400) {
-          NotificationService.showError(`Validation error: ${error.message || 'Please check all required fields'}`);
-        } else if (error.status === 401) {
-          NotificationService.showError('Authentication error: Please log in again');
-          this.authError = true;
-        } else {
-          NotificationService.showError(`Error ${this.isEditing ? 'updating' : 'creating'} goal: ${error.message || error}`);
-        }
+        this.$store.dispatch('showMessage', {
+          message: 'Failed to save goal. Please try again.',
+          type: 'error'
+        });
+      } finally {
+        this.isSaving = false;
       }
     },
     
-    // Helper method to format dates properly for API
-    formatDateForApi(dateStr) {
-      if (!dateStr) return new Date().toISOString();
+    // Add helper method to format dates for input fields
+    formatDateForInput(dateString) {
+      if (!dateString) return '';
       
-      // If it's already an ISO string with time, return as is
-      if (typeof dateStr === 'string' && dateStr.includes('T')) {
-        return dateStr;
-      }
-      
-      // Otherwise convert to full ISO string
-      return new Date(dateStr).toISOString();
-    },
-    
-    async updateProgress() {
       try {
-        console.log('Updating goal progress with data:', this.progressForm);
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '';
         
-        // Validate the progress data
-        if (!this.progressForm.goalId) {
-          NotificationService.showError('No goal selected for progress update');
-          return;
-        }
-        
-        if (this.progressForm.currentValue === null || this.progressForm.currentValue === undefined) {
-          NotificationService.showError('Please enter a current value');
-          return;
-        }
-        
-        // Call the store action
-        const response = await this.$store.dispatch('updateGoalProgress', this.progressForm);
-        console.log('Progress update successful:', response);
-        
-        NotificationService.showSuccess('Goal progress updated successfully');
-        this.closeProgressForm();
-        
-        // Refresh the goals list
-        await this.$store.dispatch('fetchGoals');
+        return date.toISOString().substr(0, 10); // Returns YYYY-MM-DD format
       } catch (error) {
-        console.error('Error updating goal progress:', error);
-        
-        // Provide more specific error messages
-        if (error.status === 404) {
-          NotificationService.showError('The goal could not be found. It may have been deleted.');
-        } else if (error.status === 401) {
-          NotificationService.showError('Authentication error. Please log in again.');
-        } else if (error.status === 400) {
-          NotificationService.showError(`Validation error: ${error.message || 'Please check all required fields'}`);
-        } else {
-          NotificationService.showError(`Failed to update goal progress: ${error.message || 'Unknown error'}`);
-        }
+        console.error('Error formatting date for input:', error);
+        return '';
       }
+    },
+    
+    // Add helper method to format dates for API
+    formatDateForAPI(dateString) {
+      if (!dateString) return null;
+      
+      try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return null;
+        
+        return date.toISOString(); // Returns full ISO format
+      } catch (error) {
+        console.error('Error formatting date for API:', error);
+        return null;
+      }
+    },
+    
+    // Update getProgressPercentage to handle both uppercase and lowercase properties
+    getProgressPercentage(goal) {
+      if (!goal) return 0;
+      if (goal.IsCompleted || goal.isCompleted) return 100;
+      
+      const startingValue = parseFloat(goal.StartingValue || goal.startingValue) || 0;
+      const currentValue = parseFloat(goal.CurrentValue || goal.currentValue) || 0;
+      const targetValue = parseFloat(goal.TargetValue || goal.targetValue) || 0;
+      
+      if (targetValue === startingValue) return 0;
+      
+      const progress = ((currentValue - startingValue) / (targetValue - startingValue)) * 100;
+      
+      // Handle cases where the goal is to decrease (e.g., weight loss)
+      if (targetValue < startingValue) {
+        const invertedProgress = ((startingValue - currentValue) / (startingValue - targetValue)) * 100;
+        return Math.max(0, Math.min(100, invertedProgress));
+      }
+      
+      return Math.max(0, Math.min(100, progress));
     },
     
     confirmDeleteGoal(id) {
@@ -710,10 +671,6 @@ export default {
       return Math.min(100, Math.max(0, (currentChange / totalChange) * 100));
     },
     
-    getProgressPercentage(goal) {
-      return this.calculateProgress(goal);
-    },
-    
     getProgressClass(goal) {
       const progress = this.calculateProgress(goal);
       if (progress >= 100) return 'progress-complete';
@@ -735,22 +692,6 @@ export default {
       
       this.goalForm.unit = metricTypeToUnit[this.goalForm.metricType] || '';
       console.log(`Metric type changed to ${this.goalForm.metricType}, unit set to ${this.goalForm.unit}`);
-    },
-    
-    // Add this helper method for formatting dates in input fields
-    formatDateForInput(dateStr) {
-      if (!dateStr) return '';
-      
-      try {
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return '';
-        
-        // Format as YYYY-MM-DD for input[type="date"]
-        return date.toISOString().substr(0, 10);
-      } catch (error) {
-        console.error('Error formatting date for input:', error);
-        return '';
-      }
     },
     
     // Enhanced debug method with more formats and structured output

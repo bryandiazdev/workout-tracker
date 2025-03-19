@@ -25,7 +25,7 @@
       <div v-else class="plans-grid">
         <div v-for="plan in workoutPlans" :key="plan.id" class="plan-card">
           <div class="plan-header">
-            <h2>{{ plan.name }}</h2>
+            <h2>{{ getPlanName(plan) }}</h2>
             <div class="plan-actions">
               <button class="btn-icon" @click="viewPlan(plan)">
                 <i class="fas fa-eye"></i>
@@ -39,7 +39,7 @@
             </div>
           </div>
           
-          <p class="plan-description">{{ plan.description || 'No description provided' }}</p>
+          <p class="plan-description">{{ getPlanDescription(plan) }}</p>
           
           <div class="plan-stats">
             <div class="plan-stat">
@@ -393,7 +393,7 @@ export default {
       this.isSubmitting = true;
       
       try {
-        // Use the store action instead of direct fetch with capitalized property names
+        // Use the store action with properly capitalized property names
         const newPlan = await this.$store.dispatch('createWorkoutPlan', {
           Name: this.planForm.name,
           Description: this.planForm.description
@@ -421,7 +421,7 @@ export default {
       this.isSubmitting = true;
       
       try {
-        // Use the store action instead of direct fetch with capitalized property names
+        // Use the store action with properly capitalized property names
         await this.$store.dispatch('updateWorkoutPlan', {
           Id: this.planForm.id,
           Name: this.planForm.name,
@@ -674,6 +674,12 @@ export default {
         path: '/workout-logs', 
         query: { plan: plan.id } 
       });
+    },
+    getPlanName(plan) {
+      return plan.Name || plan.name || 'Unnamed Plan';
+    },
+    getPlanDescription(plan) {
+      return plan.Description || plan.description || '';
     }
   },
   mounted() {

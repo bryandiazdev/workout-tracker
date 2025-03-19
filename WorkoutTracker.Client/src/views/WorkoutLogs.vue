@@ -31,7 +31,7 @@
         <div v-else class="logs-list">
           <div v-for="(log, index) in workoutLogs" :key="log.id" class="log-card card">
             <div class="card-header">
-              <h3>{{ formatDate(log.workoutDate || log.date || log.createdDate) }}</h3>
+              <h3>{{ formatDate(getLogDate(log)) }}</h3>
               <div class="log-actions">
                 <button class="btn-icon" @click="editLog(log)">
                   <i class="fas fa-edit"></i>
@@ -46,14 +46,14 @@
               <div class="log-details">
                 <div class="log-stat">
                   <i class="fas fa-clock"></i>
-                  <span>{{ formatDuration(log.duration) }}</span>
+                  <span>{{ formatDuration(getLogDuration(log)) }}</span>
                 </div>
               </div>
               
               <div class="exercises-list">
                 <h5>Exercises</h5>
-                <ul v-if="log.exerciseLogs && log.exerciseLogs.length > 0">
-                  <li v-for="exercise in log.exerciseLogs" :key="exercise.id">
+                <ul v-if="getLogExercises(log).length > 0">
+                  <li v-for="exercise in getLogExercises(log)" :key="exercise.id">
                     <div class="exercise-item">
                       <span class="exercise-name">{{ exercise.exerciseName }}</span>
                       <span class="exercise-detail">
@@ -82,9 +82,9 @@
                 <p v-else>No exercises recorded for this workout.</p>
               </div>
               
-              <div class="log-notes" v-if="log.notes">
+              <div class="log-notes" v-if="getLogNotes(log)">
                 <h5>Notes</h5>
-                <p>{{ log.notes }}</p>
+                <p>{{ getLogNotes(log) }}</p>
               </div>
             </div>
           </div>
@@ -102,7 +102,7 @@
           </div>
           
           <div class="card-body">
-            <form @submit.prevent="saveWorkoutLog">
+            <form @submit.prevent="saveLog">
               <div class="form-group">
                 <label for="workout-date">Date</label>
                 <input 
@@ -387,74 +387,56 @@ export default {
       this.logForm = this.getEmptyLogForm();
     },
     
-    async saveWorkoutLog() {
+    async saveLog() {
       try {
-        console.log('Saving workout log with form data:', JSON.stringify(this.logForm));
+        this.isSaving = true;
         
-        // Ensure ID is a valid integer
-        const logFormCopy = { ...this.logForm };
-        
-        // Convert ID to a valid integer if present, otherwise null (for new logs)
-        if (logFormCopy.id !== null) {
-          logFormCopy.id = parseInt(logFormCopy.id, 10) || null;
-        }
-        
-        // Format date properly for C# DateTime parsing
-        const workoutDate = new Date(logFormCopy.date);
-        
-        // Format data for API
-        const formattedLog = {
-          id: logFormCopy.id,
-          // Format as full ISO string that C# can parse reliably
-          workoutDate: workoutDate.toISOString(),
-          // Convert duration from minutes to a proper TimeSpan format (hh:mm:ss)
-          duration: this.formatDurationForApi(logFormCopy.duration),
-          notes: logFormCopy.notes || '',
-          workoutPlanId: logFormCopy.workoutPlanId ? parseInt(logFormCopy.workoutPlanId, 10) : null,
-          exerciseLogs: (logFormCopy.exercises || []).map(ex => ({
-            exerciseName: ex.name,
-            sets: parseInt(ex.sets, 10),
-            reps: parseInt(ex.reps, 10),
-            weight: ex.weight ? parseFloat(ex.weight) : null,
-            notes: '',
-            duration: null
+        // Create properly capitalized log data for the API
+        const logData = {
+          Id: this.isEditing ? this.logForm.id : null,
+          WorkoutDate: new Date(this.logForm.date).toISOString(),
+          WorkoutPlanId: this.logForm.workoutPlanId || null,
+          Duration: parseInt(this.logForm.duration, 10),
+          CaloriesBurned: parseInt(this.logForm.caloriesBurned, 10) || 0,
+          Notes: this.logForm.notes || '',
+          ExerciseLogs: this.logForm.exercises.map(ex => ({
+            Name: ex.name,
+            Sets: parseInt(ex.sets, 10) || 0,
+            Reps: parseInt(ex.reps, 10) || 0,
+            Weight: parseFloat(ex.weight) || null,
+            WeightUnit: ex.weightUnit || 'kg'
           }))
         };
         
-        console.log('Formatted log to send to API:', JSON.stringify(formattedLog));
+        console.log('Saving workout log with data:', logData);
         
         if (this.isEditing) {
-          await this.updateWorkoutLog(formattedLog);
-          NotificationService.showSuccess('Workout log updated successfully');
+          await this.$store.dispatch('updateWorkoutLog', logData);
+          
+          this.$store.dispatch('showMessage', {
+            message: 'Workout log updated successfully!',
+            type: 'success'
+          });
         } else {
-          await this.createWorkoutLog(formattedLog);
-          NotificationService.showSuccess('Workout logged successfully');
+          await this.$store.dispatch('createWorkoutLog', logData);
+          
+          this.$store.dispatch('showMessage', {
+            message: 'Workout log created successfully!',
+            type: 'success'
+          });
         }
+        
         this.closeForm();
+        await this.loadData();
       } catch (error) {
         console.error('Error saving workout log:', error);
-        NotificationService.showError('Failed to save workout log: ' + (error.response?.data?.message || error.message));
+        this.$store.dispatch('showMessage', {
+          message: 'Failed to save workout log. Please try again.',
+          type: 'error'
+        });
+      } finally {
+        this.isSaving = false;
       }
-    },
-    
-    formatDurationForApi(minutes) {
-      // Convert minutes to TimeSpan format (hh:mm:ss)
-      if (!minutes || isNaN(minutes)) {
-        // Default to 30 minutes if invalid
-        minutes = 30;
-      }
-      
-      // Calculate hours and remaining minutes
-      const hours = Math.floor(minutes / 60);
-      const remainingMinutes = minutes % 60;
-      
-      // Format as HH:MM:00 (no seconds)
-      // NOTE: We're putting the minutes in the middle position (MM) to be clear
-      // Since we want the API to interpret this as X hours and Y minutes, not seconds
-      // Example: "00:46:00" should be parsed as 46 minutes, not 46 seconds
-      const timespan = `${hours.toString().padStart(2, '0')}:${remainingMinutes.toString().padStart(2, '0')}:00`;
-      console.log(`Formatting ${minutes} minutes as TimeSpan: ${timespan}`);
-      return timespan;
     },
     
     confirmDeleteLog(id) {
@@ -464,7 +446,7 @@ export default {
     
     async deleteLog() {
       try {
-        await this.deleteWorkoutLog(this.logToDeleteId);
+        await this.$store.dispatch('deleteWorkoutLog', this.logToDeleteId);
         NotificationService.showSuccess('Workout log deleted');
         this.showDeleteConfirm = false;
         this.logToDeleteId = null;
@@ -527,6 +509,27 @@ export default {
       
       // If it's already a number, just return it
       return typeof duration === 'number' ? duration : 30;
+    },
+    
+    // Add helper methods to handle property casing inconsistencies
+    getLogDate(log) {
+      return log.WorkoutDate || log.workoutDate || '';
+    },
+    
+    getLogDuration(log) {
+      return log.Duration || log.duration || 0;
+    },
+    
+    getLogNotes(log) {
+      return log.Notes || log.notes || '';
+    },
+    
+    getLogCaloriesBurned(log) {
+      return log.CaloriesBurned || log.caloriesBurned || 0;
+    },
+    
+    getLogExercises(log) {
+      return log.ExerciseLogs || log.exerciseLogs || [];
     }
   },
   created() {
