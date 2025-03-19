@@ -75,31 +75,55 @@ const storeConfig = {
         }
         
         // If the API returned a goal without proper properties, we need to merge with our input data
-        let createdGoal = response;
+        let createdGoal;
         
-        // If response doesn't contain essential properties but has an ID, merge with input
-        if (response.id || response._id) {
-          if (!response.Name && !response.name) {
-            console.log('API returned a goal without properties, merging with input data');
+        // If the response has an ID but is missing goal data
+        if (response.id || response._id || response.Id) {
+          console.log('Response contains an ID:', response.id || response._id || response.Id);
+          
+          // Check if the response is missing critical goal properties
+          if (!response.Name && !response.name && !response.Description && !response.description) {
+            console.log('API response missing goal properties - merging with input data');
             
+            // Create a complete goal by combining the response ID with our input data
             createdGoal = {
-              ...normalizeGoalProperties(formattedGoal), // Use our input data
-              id: response.id || response._id, // But use the returned ID
-              _id: response.id || response._id,
-              createdDate: response.createdDate
+              // Start with our normalized input data
+              ...normalizeGoalProperties(formattedGoal),
+              
+              // Override with the ID from the response
+              id: response.id || response._id || response.Id,
+              _id: response.id || response._id || response.Id,
+              
+              // Include any other fields from the response
+              createdDate: response.createdDate || new Date().toISOString(),
+              userId: response.userId || userId
             };
             
-            console.log('Merged goal data:', createdGoal);
+            console.log('Created merged goal with input data:', createdGoal);
+            
+            // Add this goal directly to the state
+            commit('addGoal', createdGoal);
           } else {
-            // Try to normalize the response
+            // Response has both ID and some goal properties
             createdGoal = normalizeGoalProperties(response);
+            console.log('Normalized goal from response:', createdGoal);
+            
+            // Add this goal directly to the state
+            commit('addGoal', createdGoal);
           }
+        } else {
+          // Unexpected response format
+          console.warn('Unexpected API response format:', response);
+          createdGoal = normalizeGoalProperties(formattedGoal);
+          createdGoal.id = Math.random().toString(36).substr(2, 9); // Generate a temporary ID
+          
+          // Add this goal directly to the state
+          commit('addGoal', createdGoal);
         }
         
-        console.log('Normalized created goal:', createdGoal);
+        // We've already added the goal to the state, but still refresh from API to ensure consistency
+        dispatch('fetchGoals');
         
-        // Refresh goals list
-        await dispatch('fetchGoals');
         return createdGoal;
       } catch (error) {
         console.error('Error creating goal:', error);
@@ -169,6 +193,10 @@ const storeConfig = {
         const id = goal.Id || goal.id || goal._id;
         return id !== goalId;
       });
+    },
+    
+    addGoal(state, goal) {
+      state.goals.push(goal);
     }
   }
 };

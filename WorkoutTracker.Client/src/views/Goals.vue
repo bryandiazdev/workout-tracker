@@ -493,7 +493,7 @@ export default {
           TargetValue: parseFloat(this.goalForm.targetValue),
           StartDate: startDate,
           TargetDate: targetDate,
-          IsCompleted: false,
+          IsCompleted: this.goalForm.isCompleted || false,
           User: {
             Auth0Id: userId
           }
@@ -521,6 +521,8 @@ export default {
           result = await this.$store.dispatch('createGoal', goalData);
           console.log('Goal creation result:', result);
           
+          // Store notification preference in localStorage to show after page reload if needed
+          localStorage.setItem('goal_created_success', 'true');
           NotificationService.showSuccess('Goal created successfully!');
         }
         
@@ -1394,6 +1396,12 @@ export default {
   },
   created() {
     console.log('Goals component created - checking for authentication');
+    
+    // Check if we have a success message to show (for after page reload)
+    if (localStorage.getItem('goal_created_success')) {
+      NotificationService.showSuccess('Goal created successfully!');
+      localStorage.removeItem('goal_created_success');
+    }
     
     // Simple pre-check for token before attempting to load data
     const token = localStorage.getItem('auth_token');
