@@ -31,7 +31,7 @@
         <div v-else class="logs-list">
           <div v-for="(log, index) in workoutLogs" :key="log.id" class="log-card card">
             <div class="card-header">
-              <h3>{{ formatDate(log.workoutDate) }}</h3>
+              <h3>{{ formatDate(log.workoutDate || log.date || log.createdDate) }}</h3>
               <div class="log-actions">
                 <button class="btn-icon" @click="editLog(log)">
                   <i class="fas fa-edit"></i>
@@ -59,7 +59,21 @@
                       <span class="exercise-detail">
                         {{ exercise.sets }} sets × {{ exercise.reps }} reps
                         <template v-if="exercise.weight">
-                          × {{ exercise.weight }} kg
+                          × {{ exercise.weight }} {{ exercise.weightUnit || 'kg' }}
+                        </template>
+                      </span>
+                    </div>
+                  </li>
+                </ul>
+                <!-- Try exercises array if exerciseLogs is not available -->
+                <ul v-else-if="log.exercises && log.exercises.length > 0">
+                  <li v-for="exercise in log.exercises" :key="exercise.id">
+                    <div class="exercise-item">
+                      <span class="exercise-name">{{ exercise.exerciseName || exercise.name }}</span>
+                      <span class="exercise-detail">
+                        {{ exercise.sets }} sets × {{ exercise.reps }} reps
+                        <template v-if="exercise.weight">
+                          × {{ exercise.weight }} {{ exercise.weightUnit || 'kg' }}
                         </template>
                       </span>
                     </div>
@@ -461,8 +475,18 @@ export default {
     },
     
     formatDate(dateString) {
-      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-      return new Date(dateString).toLocaleDateString(undefined, options);
+      if (!dateString) return 'Invalid Date';
+      
+      try {
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return 'Invalid Date';
+        
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        return date.toLocaleDateString(undefined, options);
+      } catch (error) {
+        console.error('Error formatting date:', error);
+        return 'Invalid Date';
+      }
     },
     
     formatDuration(duration) {
@@ -481,8 +505,12 @@ export default {
         }
       }
       
-      // If it's a number, assume it's minutes
-      return `${duration} minute${duration !== 1 ? 's' : ''}`;
+      // Handle numeric duration (minutes)
+      if (!isNaN(duration)) {
+        return `${duration} minute${duration !== 1 ? 's' : ''}`;
+      }
+      
+      return '0 minutes';
     },
     
     getDurationInMinutes(duration) {

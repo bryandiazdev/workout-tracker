@@ -182,6 +182,7 @@ async function handleWorkoutLogs(req, res) {
   try {
     // Extract user ID from token
     const userId = await extractUserId(req);
+    console.log('Processing workout logs for user:', userId);
     
     // Connect to database
     const { db } = await connectToDatabase();
@@ -190,11 +191,65 @@ async function handleWorkoutLogs(req, res) {
     // Handle different HTTP methods
     if (req.method === 'GET') {
       // Get all workout logs for the user
+      console.log('Fetching workout logs from MongoDB');
       const logs = await collection.find({ userId }).toArray();
-      const formattedLogs = logs.map(log => ({
-        ...log,
-        id: log._id.toString()
-      }));
+      console.log(`Found ${logs.length} workout logs for user ${userId}`);
+      
+      // Format the logs for the frontend
+      const formattedLogs = logs.map(log => {
+        console.log('Processing log:', JSON.stringify(log));
+        
+        // Handle both nested and flat structures
+        let formattedLog = {
+          id: log._id.toString()
+        };
+        
+        // Handle case where data might be in a nested workoutLog object or at the root
+        if (log.workoutLog) {
+          // Nested structure
+          formattedLog = {
+            ...formattedLog,
+            ...log.workoutLog,
+            id: log._id.toString(),
+            // Ensure date is properly formatted
+            date: new Date(log.workoutLog.workoutDate).toISOString().split('T')[0],
+            // Format duration (remove enclosing quotes if present)
+            duration: log.workoutLog.duration ? log.workoutLog.duration.replace(/^"|"$/g, '') : "00:00:00",
+            // Ensure exerciseLogs are included
+            exercises: log.exerciseLogs || []
+          };
+        } else {
+          // Flat structure
+          formattedLog = {
+            ...log,
+            id: log._id.toString(),
+            // Format date correctly for display if it exists
+            date: log.workoutDate ? new Date(log.workoutDate).toISOString().split('T')[0] : new Date(log.createdDate).toISOString().split('T')[0],
+            // Ensure duration is properly formatted
+            duration: log.duration ? log.duration.replace(/^"|"$/g, '') : "00:00:00",
+            // Make sure we have exercises array
+            exercises: log.exerciseLogs || []
+          };
+        }
+        
+        // Calculate duration in minutes for display
+        try {
+          if (formattedLog.duration) {
+            const [hours, minutes] = formattedLog.duration.split(':');
+            formattedLog.durationMinutes = parseInt(hours) * 60 + parseInt(minutes);
+          } else {
+            formattedLog.durationMinutes = 0;
+          }
+        } catch (e) {
+          console.error('Error parsing duration:', e);
+          formattedLog.durationMinutes = 0;
+        }
+        
+        console.log('Formatted log:', JSON.stringify(formattedLog));
+        return formattedLog;
+      });
+      
+      console.log(`Returning ${formattedLogs.length} formatted workout logs`);
       
       return res.status(200).json({
         $id: "1",
@@ -209,13 +264,31 @@ async function handleWorkoutLogs(req, res) {
         logData = req.body;
       }
       
+      console.log('Creating new workout log with data:', JSON.stringify(logData));
+      
+      // Extract the main workout data if it's nested
+      const workoutLogData = logData.workoutLog || logData;
+      
+      // Create a new document with flattened structure for better compatibility
       const newLog = {
-        ...logData,
+        // Main workout data
+        workoutDate: workoutLogData.workoutDate,
+        duration: workoutLogData.duration,
+        notes: workoutLogData.notes || "",
+        workoutPlanId: workoutLogData.workoutPlanId,
+        
+        // Exercise logs as an array
+        exerciseLogs: workoutLogData.exerciseLogs || workoutLogData.exercises || [],
+        
+        // Meta data
         userId,
         createdDate: new Date().toISOString()
       };
       
+      console.log('Saving workout log to MongoDB:', JSON.stringify(newLog));
       const result = await collection.insertOne(newLog);
+      console.log('Workout log saved with ID:', result.insertedId);
+      
       return res.status(201).json({
         ...newLog,
         id: result.insertedId.toString()
@@ -237,9 +310,27 @@ async function handleWorkoutLogs(req, res) {
       delete logData.id;
       delete logData._id;
       
+      // Extract the main workout data if it's nested
+      const workoutLogData = logData.workoutLog || logData;
+      
+      // Create a flattened update document
+      const updateData = {
+        // Main workout data
+        workoutDate: workoutLogData.workoutDate,
+        duration: workoutLogData.duration,
+        notes: workoutLogData.notes || "",
+        workoutPlanId: workoutLogData.workoutPlanId,
+        
+        // Exercise logs as an array
+        exerciseLogs: workoutLogData.exerciseLogs || workoutLogData.exercises || [],
+        
+        // Update timestamp
+        updatedAt: new Date().toISOString()
+      };
+      
       const result = await collection.updateOne(
         { _id: ObjectId.isValid(logId) ? new ObjectId(logId) : logId, userId },
-        { $set: logData }
+        { $set: updateData }
       );
       
       if (result.matchedCount === 0) {
@@ -247,7 +338,7 @@ async function handleWorkoutLogs(req, res) {
       }
       
       return res.status(200).json({
-        ...logData,
+        ...updateData,
         id: logId
       });
     } else if (req.method === 'DELETE') {
@@ -286,6 +377,7 @@ async function handleWorkoutPlans(req, res) {
   try {
     // Extract user ID from token
     const userId = await extractUserId(req);
+    console.log('Processing workout plans for user:', userId);
     
     // Connect to database
     const { db } = await connectToDatabase();
@@ -294,11 +386,32 @@ async function handleWorkoutPlans(req, res) {
     // Handle different HTTP methods
     if (req.method === 'GET') {
       // Get all workout plans for the user
+      console.log('Fetching workout plans from MongoDB');
       const plans = await collection.find({ userId }).toArray();
-      const formattedPlans = plans.map(plan => ({
-        ...plan,
-        id: plan._id.toString()
-      }));
+      console.log(`Found ${plans.length} workout plans for user ${userId}`);
+      
+      // Format the plans for the frontend
+      const formattedPlans = plans.map(plan => {
+        console.log('Processing plan:', JSON.stringify(plan));
+        
+        // Create a formatted plan object with consistent property names
+        const formattedPlan = {
+          ...plan,
+          id: plan._id.toString(),
+          // Ensure these properties exist with correct casing
+          name: plan.Name || plan.name || 'Unnamed Workout Plan',
+          description: plan.Description || plan.description || '',
+          // Ensure exercises are available
+          exercises: plan.exercises || plan.Exercises || [],
+          // Format creation date
+          createdAt: plan.createdDate || plan.createdAt || new Date().toISOString()
+        };
+        
+        console.log('Formatted plan:', JSON.stringify(formattedPlan));
+        return formattedPlan;
+      });
+      
+      console.log(`Returning ${formattedPlans.length} formatted workout plans`);
       
       return res.status(200).json({
         $id: "1",
@@ -313,13 +426,21 @@ async function handleWorkoutPlans(req, res) {
         planData = req.body;
       }
       
+      console.log('Creating new workout plan with data:', JSON.stringify(planData));
+      
+      // Normalize the plan data
       const newPlan = {
-        ...planData,
+        name: planData.name || planData.Name || 'Unnamed Workout Plan',
+        description: planData.description || planData.Description || '',
+        exercises: planData.exercises || planData.Exercises || [],
         userId,
         createdDate: new Date().toISOString()
       };
       
+      console.log('Saving workout plan to MongoDB:', JSON.stringify(newPlan));
       const result = await collection.insertOne(newPlan);
+      console.log('Workout plan saved with ID:', result.insertedId);
+      
       return res.status(201).json({
         ...newPlan,
         id: result.insertedId.toString()
@@ -341,9 +462,18 @@ async function handleWorkoutPlans(req, res) {
       delete planData.id;
       delete planData._id;
       
+      // Normalize the plan data
+      const updateData = {
+        // Use either casing version of the fields
+        name: planData.name || planData.Name || 'Unnamed Workout Plan',
+        description: planData.description || planData.Description || '',
+        exercises: planData.exercises || planData.Exercises || [],
+        updatedAt: new Date().toISOString()
+      };
+      
       const result = await collection.updateOne(
         { _id: ObjectId.isValid(planId) ? new ObjectId(planId) : planId, userId },
-        { $set: planData }
+        { $set: updateData }
       );
       
       if (result.matchedCount === 0) {
@@ -351,7 +481,7 @@ async function handleWorkoutPlans(req, res) {
       }
       
       return res.status(200).json({
-        ...planData,
+        ...updateData,
         id: planId
       });
     } else if (req.method === 'DELETE') {
