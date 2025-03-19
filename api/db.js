@@ -33,6 +33,7 @@ async function connectToDatabase() {
     socketTimeoutMS: 45000,  // 45 seconds
     retryWrites: true,
     maxPoolSize: 10,         // Maximum number of connections in the pool
+    serverSelectionTimeoutMS: 15000, // Wait 15 seconds before timing out
   };
   
   const client = new MongoClient(uri, options);
@@ -44,14 +45,24 @@ async function connectToDatabase() {
     // Get database name from URI or use default
     let dbName;
     try {
-      dbName = new URL(uri).pathname.substr(1);
+      const url = new URL(uri);
+      dbName = url.pathname ? url.pathname.substring(1) : null;
+      console.log('Extracted database name from URI:', dbName || '(none)');
     } catch (error) {
-      console.warn('Could not parse database name from URI, using default');
+      console.warn('Could not parse database name from URI, using default:', error.message);
       dbName = null;
     }
     
     const db = client.db(dbName || 'workout_tracker');
     console.log('Using database:', dbName || 'workout_tracker');
+    
+    // Test the connection by listing collections
+    try {
+      const collections = await db.listCollections().toArray();
+      console.log('Available collections:', collections.map(c => c.name).join(', '));
+    } catch (error) {
+      console.warn('Could not list collections, but connection seems established:', error.message);
+    }
     
     // Cache the connection
     cachedClient = client;
@@ -62,9 +73,15 @@ async function connectToDatabase() {
     console.error('Failed to connect to MongoDB:', error.message);
     console.error('Connection stack trace:', error.stack);
     
+    // Additional diagnostics
+    console.error('MongoDB URI format valid:', uri.startsWith('mongodb'));
+    console.error('MongoDB URI includes username/password:', uri.includes('@'));
+    
     // Ensure we don't leave a hanging connection
     if (client) {
-      await client.close();
+      await client.close().catch(err => {
+        console.error('Error closing MongoDB client:', err.message);
+      });
     }
     
     throw error;

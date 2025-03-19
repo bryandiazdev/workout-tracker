@@ -1,6 +1,6 @@
-// This file resolves the circular reference issue by using a shared implementation
-// Import the actual implementation
-const goalsImplementation = require('./lowercase-goals.js');
+// This file handles requests to /api/Goals (capital G)
+// Import the shared implementation
+const handleGoalsRequest = require('./goals-impl.js');
 
-// Export the implementation
-module.exports = goalsImplementation; 
+// Export the handler
+module.exports = handleGoalsRequest; 
