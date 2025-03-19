@@ -1,0 +1,26 @@
+{
+  "name": "workouttracker.client",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vue-cli-service serve",
+    "build": "vue-cli-service build",
+    "vercel-build": "vue-cli-service build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "auth0-js": "^9.28.0",
+    "axios": "^1.8.3",
+    "chart.js": "^4.4.8",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0",
+    "vuex": "^4.1.0"
+  },
+  "devDependencies": {
+    "@vue/cli-service": "^5.0.8"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "workout-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "WorkoutTracker.Client"
+  ],
+  "scripts": {
+    "dev": "cd WorkoutTracker.Client && npm run dev",
+    "build": "cd WorkoutTracker.Client && npm run build",
+    "start": "cd WorkoutTracker.Client && npm run start"
+  }
+} 

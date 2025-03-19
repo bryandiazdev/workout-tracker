@@ -1,0 +1,27 @@
+# Exclude the .NET API project completely
+WorkoutTracker.Api/
+
+# Node.js dependencies
+**/node_modules
+
+# .NET build artifacts
+**/bin
+**/obj
+**/.vs
+
+# Local environment files
+**/.env.local
+**/.env.development.local
+
+# Exclude .NET runtime files
+*.dll
+*.exe
+*.pdb
+
+# Exclude database files
+*.mdf
+*.ldf
+*.db
+
+# Include only necessary files from the .NET project
+!WorkoutTracker.Client/ 
