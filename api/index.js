@@ -23,6 +23,8 @@ module.exports = async (req, res) => {
   const path = req.url.split('?')[0]; // Remove query string if present
   const segments = path.split('/').filter(Boolean);
   
+  console.log('URL segments:', segments);
+  
   // Extract the endpoint name (lowercase for consistency)
   // Fix: Check if the first segment is 'api', if so use the second segment as the endpoint
   let endpoint = '';
@@ -42,9 +44,13 @@ module.exports = async (req, res) => {
   
   try {
     // Special case for workout plan exercises
-    if (segments.length >= 3 && 
-        (segments[1].toLowerCase() === 'workoutplans' || segments[1].toLowerCase() === 'workoutplans') && 
-        segments[3] && segments[3].toLowerCase() === 'exercises') {
+    if ((segments.length >= 3 && 
+        segments[0].toLowerCase() === 'api' &&
+        segments[1].toLowerCase() === 'workoutplans' && 
+        segments[3] && segments[3].toLowerCase() === 'exercises') ||
+        (segments.length >= 2 &&
+        segments[0].toLowerCase() === 'workoutplans' &&
+        segments[2] && segments[2].toLowerCase() === 'exercises')) {
       console.log('Handling workout plan exercise operation');
       return await handleWorkoutPlanExercises(req, res, segments);
     }
@@ -851,20 +857,33 @@ async function handleEnvTest(req, res) {
 // Workout Plan Exercises handler for operations on exercises within a plan
 async function handleWorkoutPlanExercises(req, res, segments) {
   try {
+    console.log('Handling workout plan exercises with segments:', segments);
+    
     // Extract user ID from token
     const userId = await extractUserId(req);
     
     // Extract plan ID from URL path
-    // URL pattern would be: /api/workoutplans/{planId}/exercises
-    // OR for a specific exercise: /api/workoutplans/{planId}/exercises/{exerciseId}
-    if (segments.length < 3) {
-      return res.status(400).json({ message: "Invalid URL format. Expected /api/workoutplans/{planId}/exercises" });
+    // URL pattern could be either:
+    // 1. /api/workoutplans/{planId}/exercises
+    // 2. /workoutplans/{planId}/exercises
+    
+    let planIdIndex = 0;
+    let exerciseIdIndex = 0;
+    
+    // Determine the index of planId based on URL pattern
+    if (segments[0].toLowerCase() === 'api') {
+      // Pattern: /api/workoutplans/{planId}/exercises[/{exerciseId}]
+      planIdIndex = 2;
+      exerciseIdIndex = 4;
+    } else {
+      // Pattern: /workoutplans/{planId}/exercises[/{exerciseId}]
+      planIdIndex = 1;
+      exerciseIdIndex = 3;
     }
     
-    // Handle potential "api" prefix in segments
-    let planIdIndex = 1;
-    if (segments[0].toLowerCase() === 'api') {
-      planIdIndex = 2;
+    // Ensure we have enough segments for the planId
+    if (segments.length <= planIdIndex) {
+      return res.status(400).json({ message: "Invalid URL format. Expected /api/workoutplans/{planId}/exercises" });
     }
     
     const planId = segments[planIdIndex];
@@ -894,11 +913,11 @@ async function handleWorkoutPlanExercises(req, res, segments) {
     }
     
     // Check if we're dealing with a specific exercise
-    const hasExerciseId = segments.length > planIdIndex + 2;
+    const hasExerciseId = segments.length > exerciseIdIndex;
     let exerciseId = null;
     
     if (hasExerciseId) {
-      exerciseId = segments[planIdIndex + 2];
+      exerciseId = segments[exerciseIdIndex];
       console.log(`Operating on specific exercise ${exerciseId}`);
     }
     
