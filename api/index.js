@@ -69,6 +69,11 @@ module.exports = async (req, res) => {
           return await goalsHandler(req, res);
         }
         
+      case 'exercises':
+      case 'Exercises':
+        // Handle direct requests to the Exercises endpoint
+        return await handleExercises(req, res);
+        
       case 'workoutlogs':
       case 'WorkoutLogs':
         // Handle workout logs endpoint
@@ -852,6 +857,144 @@ async function handleEnvTest(req, res) {
     envStatus,
     allVariables: Object.keys(process.env)
   });
+}
+
+// Handle direct requests to the Exercises endpoint
+async function handleExercises(req, res) {
+  try {
+    console.log('Handling direct request to Exercises endpoint');
+    console.log(`Method: ${req.method}, URL: ${req.url}`);
+    
+    // Extract user ID from token
+    const userId = await extractUserId(req);
+    
+    // Handle different HTTP methods
+    if (req.method === 'POST') {
+      // Get the request body
+      let exerciseData;
+      if (typeof req.body === 'string') {
+        exerciseData = JSON.parse(req.body);
+      } else {
+        exerciseData = req.body;
+      }
+      
+      console.log('Exercise data received:', JSON.stringify(exerciseData));
+      
+      // Check if a workout plan ID is included
+      const workoutPlanId = exerciseData.workoutPlanId || exerciseData.planId;
+      
+      if (workoutPlanId) {
+        console.log(`Workout plan ID found: ${workoutPlanId}, forwarding to workout plan exercises handler`);
+        
+        // Connect to database to check if the plan exists
+        const { db } = await connectToDatabase();
+        const collection = db.collection('workout_plans');
+        
+        const plan = await collection.findOne({
+          _id: ObjectId.isValid(workoutPlanId) ? new ObjectId(workoutPlanId) : workoutPlanId,
+          userId
+        });
+        
+        if (!plan) {
+          return res.status(404).json({ message: "Workout plan not found or not accessible" });
+        }
+        
+        // Create a segments array to simulate the workout plan exercises path
+        const segments = ['api', 'workoutplans', workoutPlanId, 'exercises'];
+        
+        // Forward to the workout plan exercises handler
+        return await handleWorkoutPlanExercises(req, res, segments);
+      }
+      
+      // If no plan ID is provided, create a standalone exercise in a dedicated collection
+      console.log('No workout plan ID found, creating standalone exercise');
+      
+      // Validate exercise data
+      if (!exerciseData.name) {
+        return res.status(400).json({ message: "Exercise name is required" });
+      }
+      
+      // Connect to database
+      const { db } = await connectToDatabase();
+      const collection = db.collection('exercises');
+      
+      // Create a new exercise document
+      const newExercise = {
+        name: exerciseData.name,
+        description: exerciseData.description || '',
+        sets: exerciseData.sets || 3,
+        reps: exerciseData.reps || 10,
+        weight: exerciseData.weight || null,
+        weightUnit: exerciseData.weightUnit || 'kg',
+        duration: exerciseData.duration || null,
+        notes: exerciseData.notes || '',
+        muscleGroups: exerciseData.muscleGroups || [],
+        userId,
+        createdDate: new Date().toISOString()
+      };
+      
+      console.log('Creating standalone exercise:', JSON.stringify(newExercise));
+      const result = await collection.insertOne(newExercise);
+      
+      return res.status(201).json({
+        ...newExercise,
+        id: result.insertedId.toString()
+      });
+    } else if (req.method === 'GET') {
+      // Retrieve exercises (either standalone or from all workout plans)
+      const { db } = await connectToDatabase();
+      
+      // Get standalone exercises
+      const standaloneExercises = await db.collection('exercises')
+        .find({ userId })
+        .toArray();
+      
+      // Get workout plans with exercises
+      const plans = await db.collection('workout_plans')
+        .find({ userId })
+        .toArray();
+      
+      // Extract exercises from all plans and flatten the array
+      const planExercises = plans
+        .filter(plan => plan.exercises && Array.isArray(plan.exercises))
+        .flatMap(plan => plan.exercises.map(exercise => ({
+          ...exercise,
+          workoutPlanId: plan._id.toString(),
+          workoutPlanName: plan.name || plan.Name || 'Unnamed Plan'
+        })));
+      
+      // Combine both sets of exercises
+      const allExercises = [
+        ...standaloneExercises.map(ex => ({
+          ...ex,
+          id: ex._id.toString(),
+          standalone: true
+        })),
+        ...planExercises
+      ];
+      
+      console.log(`Returning ${allExercises.length} exercises (${standaloneExercises.length} standalone, ${planExercises.length} from plans)`);
+      
+      return res.status(200).json({
+        $id: "1",
+        $values: allExercises
+      });
+    }
+    
+    return res.status(405).json({ 
+      message: `Method ${req.method} not allowed`,
+      note: "The Exercises endpoint currently supports GET (to list exercises) and POST (to create exercises)"
+    });
+  } catch (error) {
+    console.error('Error handling exercises:', error);
+    if (error.message === 'Missing or invalid authorization token') {
+      return res.status(401).json({ message: error.message });
+    }
+    return res.status(500).json({ 
+      message: "Error processing exercises", 
+      error: error.message 
+    });
+  }
 }
 
 // Workout Plan Exercises handler for operations on exercises within a plan
