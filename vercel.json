@@ -20,8 +20,5 @@
     { "src": "/api/Users/me", "dest": "/api/users.js" },
     { "src": "/api/users/me", "dest": "/api/users.js" },
     { "src": "/(.*)", "dest": "/index.html" }
-  ],
-  "env": {
-    "MONGODB_URI": "@mongodb_uri"
-  }
+  ]
 } 
