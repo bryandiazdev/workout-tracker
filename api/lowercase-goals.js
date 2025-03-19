@@ -5,6 +5,7 @@ const { ObjectId } = require('mongodb');
 module.exports = async (req, res) => {
   console.log(`Received ${req.method} request to /api/goals (lowercase)`);
   console.log('URL path:', req.url);
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
   
   // Enable CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -25,28 +26,40 @@ module.exports = async (req, res) => {
     });
   }
   
+  // Extract user ID from token
+  let userId = 'user-123'; // Default fallback ID
+  try {
+    // Simple JWT parsing to extract sub claim (this is a basic version)
+    const token = authHeader.split(' ')[1];
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    console.log('Extracted token payload:', payload);
+    userId = payload.sub || userId;
+    console.log('Using userId:', userId);
+  } catch (error) {
+    console.warn('Error parsing token, using default userId:', error.message);
+  }
+  
   try {
     // Connect to database
     const { db } = await connectToDatabase();
     const collection = db.collection('goals');
     
-    // Extract user ID from token (in a real app)
-    // For now, we'll use a static user ID
-    const userId = 'user-123';
-    
     // Handle GET request - retrieve goals
     if (req.method === 'GET') {
       // Check if specific goal ID is requested
       if (req.url.includes('/')) {
-        const parts = req.url.split('/');
+        const parts = req.url.split('/').filter(Boolean);
         if (parts.length > 1) {
           const goalId = parts[parts.length - 1];
+          console.log(`Fetching specific goal with ID: ${goalId}`);
           
           try {
             const goal = await collection.findOne({ 
               _id: ObjectId.isValid(goalId) ? new ObjectId(goalId) : goalId,
               userId: userId 
             });
+            
+            console.log('Goal found:', goal ? 'yes' : 'no');
             
             if (goal) {
               return res.status(200).json({
@@ -65,6 +78,7 @@ module.exports = async (req, res) => {
       
       // Get all goals for the user
       try {
+        console.log(`Fetching all goals for user: ${userId}`);
         const goals = await collection.find({ userId: userId }).toArray();
         const formattedGoals = goals.map(goal => ({
           ...goal,
@@ -87,8 +101,26 @@ module.exports = async (req, res) => {
     // Handle POST request - create a new goal
     if (req.method === 'POST') {
       try {
-        const goalData = req.body;
+        // Ensure the body is parsed correctly
+        let goalData;
+        
+        if (typeof req.body === 'string') {
+          try {
+            goalData = JSON.parse(req.body);
+          } catch (e) {
+            console.error('Error parsing request body string:', e);
+            return res.status(400).json({ message: "Invalid JSON in request body" });
+          }
+        } else {
+          goalData = req.body;
+        }
+        
         console.log('Received goal data:', goalData);
+        
+        if (!goalData) {
+          console.error('No goal data provided');
+          return res.status(400).json({ message: "No goal data provided" });
+        }
         
         // Prepare goal for insertion
         const newGoal = {
@@ -100,6 +132,7 @@ module.exports = async (req, res) => {
         };
         
         // Insert into database
+        console.log('Inserting goal:', newGoal);
         const result = await collection.insertOne(newGoal);
         console.log('Goal inserted with ID:', result.insertedId);
         
@@ -120,7 +153,20 @@ module.exports = async (req, res) => {
     // Handle PUT request - update goal
     if (req.method === 'PUT') {
       try {
-        const goalData = req.body;
+        // Ensure the body is parsed correctly
+        let goalData;
+        
+        if (typeof req.body === 'string') {
+          try {
+            goalData = JSON.parse(req.body);
+          } catch (e) {
+            console.error('Error parsing request body string:', e);
+            return res.status(400).json({ message: "Invalid JSON in request body" });
+          }
+        } else {
+          goalData = req.body;
+        }
+        
         const goalId = goalData.id || goalData._id;
         
         if (!goalId) {
@@ -135,6 +181,8 @@ module.exports = async (req, res) => {
         // Add updated timestamp
         updateData.updatedAt = new Date().toISOString();
         
+        console.log(`Updating goal with ID: ${goalId}`, updateData);
+        
         // Update in database
         const result = await collection.updateOne(
           { 
@@ -143,6 +191,8 @@ module.exports = async (req, res) => {
           },
           { $set: updateData }
         );
+        
+        console.log('Update result:', result);
         
         if (result.matchedCount === 0) {
           return res.status(404).json({ message: "Goal not found" });
@@ -166,14 +216,17 @@ module.exports = async (req, res) => {
     if (req.method === 'DELETE') {
       try {
         if (req.url.includes('/')) {
-          const parts = req.url.split('/');
+          const parts = req.url.split('/').filter(Boolean);
           if (parts.length > 1) {
             const goalId = parts[parts.length - 1];
+            console.log(`Deleting goal with ID: ${goalId}`);
             
             const result = await collection.deleteOne({ 
               _id: ObjectId.isValid(goalId) ? new ObjectId(goalId) : goalId,
               userId: userId 
             });
+            
+            console.log('Delete result:', result);
             
             if (result.deletedCount === 0) {
               return res.status(404).json({ message: "Goal not found" });

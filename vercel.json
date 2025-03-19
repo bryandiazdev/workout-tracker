@@ -13,11 +13,15 @@
     { "src": "/api/workoutplans", "dest": "/api/WorkoutPlans.js" },
     { "src": "/api/Goals", "dest": "/api/Goals.js" },
     { "src": "/api/goals", "dest": "/api/goals.js" },
+    { "src": "/api/env-test", "dest": "/api/env-test.js" },
     { "src": "/api/stats", "dest": "/api/stats.js" },
     { "src": "/api/Users", "dest": "/api/users.js" },
     { "src": "/api/users", "dest": "/api/users.js" },
     { "src": "/api/Users/me", "dest": "/api/users.js" },
     { "src": "/api/users/me", "dest": "/api/users.js" },
     { "src": "/(.*)", "dest": "/index.html" }
-  ]
+  ],
+  "env": {
+    "MONGODB_URI": "@mongodb_uri"
+  }
 } 
