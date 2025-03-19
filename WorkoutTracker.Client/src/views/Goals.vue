@@ -90,7 +90,7 @@
           
           <div class="goal-actions">
             <button class="btn btn-primary" @click="editGoal(goal)">Edit</button>
-            <button class="btn btn-danger" @click="deleteGoal(goal)">Delete</button>
+            <button class="btn btn-danger" @click="confirmDeleteGoal(goal.Id || goal._id || goal.id)">Delete</button>
           </div>
         </div>
       </div>
@@ -362,22 +362,17 @@ export default {
     ...mapActions(['fetchGoals', 'createGoal', 'updateGoal', 'updateGoalProgress', 'deleteGoal']),
     
     getEmptyGoalForm() {
-      // Get today's date and a date 3 months from now
-      const today = new Date();
-      const threeMonthsLater = new Date(today);
-      threeMonthsLater.setMonth(today.getMonth() + 3);
-      
       return {
         id: null,
         name: '',
-        description: 'Goal created from workout tracker', // Provide a default description
-        startDate: today.toISOString().substr(0, 10),
-        targetDate: threeMonthsLater.toISOString().substr(0, 10),
+        description: '',
         metricType: 'weight',
+        unit: 'kg',
         startingValue: 0,
         currentValue: 0,
         targetValue: 0,
-        unit: 'kg', // Default unit for weight metric type
+        startDate: new Date().toISOString().substr(0, 10),
+        targetDate: new Date(new Date().setDate(new Date().getDate() + 30)).toISOString().substr(0, 10),
         isCompleted: false
       };
     },
@@ -507,7 +502,7 @@ export default {
         }
         
         this.closeForm();
-        this.loadData();
+        await this.loadData();
       } catch (error) {
         console.error('Error saving goal:', error);
         this.$store.dispatch('showMessage', {
@@ -572,19 +567,30 @@ export default {
     },
     
     confirmDeleteGoal(id) {
+      console.log('Confirming delete for goal ID:', id);
       this.goalToDeleteId = id;
       this.showDeleteConfirm = true;
     },
     
     async deleteGoal() {
       try {
-        await this.deleteGoal(this.goalToDeleteId);
-        NotificationService.showSuccess('Goal deleted');
+        console.log('Deleting goal with ID:', this.goalToDeleteId);
+        // Call the store action to delete the goal instead of calling self
+        await this.$store.dispatch('deleteGoal', this.goalToDeleteId);
+        this.$store.dispatch('showMessage', {
+          message: 'Goal deleted successfully!',
+          type: 'success'
+        });
         this.showDeleteConfirm = false;
         this.goalToDeleteId = null;
+        // Refresh goal list
+        await this.loadData();
       } catch (error) {
         console.error('Error deleting goal:', error);
-        NotificationService.showError('Failed to delete goal');
+        this.$store.dispatch('showMessage', {
+          message: 'Failed to delete goal. Please try again.',
+          type: 'error'
+        });
       }
     },
     

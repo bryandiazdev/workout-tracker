@@ -58,10 +58,19 @@ const storeConfig = {
     async updateGoal({ commit, dispatch }, goalData) {
       try {
         console.log('Updating goal with data:', goalData);
+        
         // Ensure goal data has properly capitalized field names for API
         const formattedGoal = ensureProperCasingForApi(goalData);
         
-        const response = await ApiService.put(`Goals/${formattedGoal.Id || formattedGoal.id}`, formattedGoal);
+        // Make sure we have a valid ID
+        if (!formattedGoal.Id) {
+          throw new Error('Goal ID is required for update');
+        }
+        
+        console.log('Formatted goal data for update:', formattedGoal);
+        
+        // Send the update request with the properly capitalized ID
+        const response = await ApiService.put(`Goals/${formattedGoal.Id}`, formattedGoal);
         console.log('Update goal response:', response);
         
         // Refresh goals list
@@ -71,11 +80,43 @@ const storeConfig = {
         console.error('Error updating goal:', error);
         throw error;
       }
+    },
+    
+    async deleteGoal({ commit, dispatch }, goalId) {
+      try {
+        console.log('Deleting goal with ID:', goalId);
+        
+        // Make sure we have a valid ID
+        if (!goalId) {
+          throw new Error('Goal ID is required for deletion');
+        }
+        
+        // Make the API call to delete the goal
+        await ApiService.delete(`Goals/${goalId}`);
+        
+        // Update the store
+        commit('removeGoal', goalId);
+        
+        console.log('Goal deleted successfully');
+        return true;
+      } catch (error) {
+        console.error('Error deleting goal:', error);
+        throw error;
+      }
     }
   },
   mutations: {
     setGoals(state, goals) {
       state.goals = goals;
+    },
+    
+    // Add the removeGoal mutation
+    removeGoal(state, goalId) {
+      state.goals = state.goals.filter(goal => {
+        // Handle different ID formats (uppercase Id, lowercase id, MongoDB _id)
+        const id = goal.Id || goal.id || goal._id;
+        return id !== goalId;
+      });
     }
   }
 };
