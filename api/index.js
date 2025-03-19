@@ -47,16 +47,19 @@ module.exports = async (req, res) => {
       case 'goals_redirect':
       case 'lowercase-goals':
       case 'Goals':
-        // Handle all goals-related endpoints
-        return await goalsHandler(req, res);
+        // For Goals endpoint, we'll handle directly here to ensure proper data retrieval
+        if (req.method === 'GET') {
+          return await handleGoalsGet(req, res);
+        } else {
+          // For other methods, use the existing handler
+          return await goalsHandler(req, res);
+        }
         
-      case 'workoutlogs':
       case 'workoutlogs':
       case 'WorkoutLogs':
         // Handle workout logs endpoint
         return await handleWorkoutLogs(req, res);
         
-      case 'workoutplans':
       case 'workoutplans':
       case 'WorkoutPlans':
         // Handle workout plans endpoint
@@ -100,6 +103,55 @@ module.exports = async (req, res) => {
     });
   }
 };
+
+// New handler specifically for GET requests to the Goals endpoint
+async function handleGoalsGet(req, res) {
+  try {
+    // Extract user ID from token
+    const userId = await extractUserId(req);
+    console.log('Getting goals for user:', userId);
+    
+    // Connect to database
+    const { db } = await connectToDatabase();
+    const collection = db.collection('goals');
+    
+    // Get all goals for the user
+    console.log('Querying goals collection with userId:', userId);
+    const goals = await collection.find({ userId }).toArray();
+    console.log(`Found ${goals.length} goals for user ${userId}`);
+    
+    // Format goals to match expected client format
+    const formattedGoals = goals.map(goal => ({
+      ...goal,
+      id: goal._id.toString(),
+      // Ensure these properties exist and have the correct casing
+      isCompleted: goal.isCompleted || goal.IsCompleted || false,
+      name: goal.Name || goal.name,
+      description: goal.Description || goal.description,
+      targetDate: goal.TargetDate || goal.targetDate,
+      startingValue: goal.StartingValue || goal.startingValue || 0,
+      currentValue: goal.CurrentValue || goal.currentValue || 0,
+      targetValue: goal.TargetValue || goal.targetValue || 0
+    }));
+    
+    console.log('Formatted goals for response:', formattedGoals);
+    
+    // Return in the format expected by the client
+    return res.status(200).json({
+      $id: "1",
+      $values: formattedGoals
+    });
+  } catch (error) {
+    console.error('Error retrieving goals:', error);
+    if (error.message === 'Missing or invalid authorization token') {
+      return res.status(401).json({ message: error.message });
+    }
+    return res.status(500).json({ 
+      message: "Error retrieving goals", 
+      error: error.message 
+    });
+  }
+}
 
 // Extract user ID from Authorization header
 async function extractUserId(req) {
