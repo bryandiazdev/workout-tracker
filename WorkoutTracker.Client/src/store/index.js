@@ -40,15 +40,33 @@ const storeConfig = {
     async createGoal({ commit, dispatch }, goalData) {
       try {
         console.log('Creating goal with data:', goalData);
+        
         // Ensure goal data has properly capitalized field names for API
         const formattedGoal = ensureProperCasingForApi(goalData);
+        console.log('Formatted goal data for API:', formattedGoal);
         
+        // Make API call
         const response = await ApiService.post('Goals', formattedGoal);
-        console.log('Create goal response:', response);
+        console.log('Create goal API response:', response);
+        
+        // Check if we got a proper response
+        if (!response) {
+          throw new Error('No response from server');
+        }
+        
+        // If response doesn't have the expected format, normalize it
+        let createdGoal = response;
+        if (!response.Name && !response.name) {
+          console.warn('Response from API does not have expected goal properties');
+          // Try to normalize the response
+          createdGoal = normalizeGoalProperties(response);
+        }
+        
+        console.log('Normalized created goal:', createdGoal);
         
         // Refresh goals list
         await dispatch('fetchGoals');
-        return response;
+        return createdGoal;
       } catch (error) {
         console.error('Error creating goal:', error);
         throw error;

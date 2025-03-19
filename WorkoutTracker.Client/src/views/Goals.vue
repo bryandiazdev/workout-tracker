@@ -232,8 +232,8 @@
               <button type="button" class="btn btn-secondary" @click="closeForm">
                 Cancel
               </button>
-              <button type="button" class="btn btn-success" @click="finalDebugApproach">
-                Create Goal
+              <button type="submit" class="btn btn-success">
+                {{ isEditing ? 'Update Goal' : 'Create Goal' }}
               </button>
             </div>
           </form>
@@ -461,14 +461,17 @@ export default {
     async saveGoal() {
       try {
         this.isSaving = true;
+        console.log('Starting goal save process...');
         
         // Format dates properly
         const startDate = this.formatDateForAPI(this.goalForm.startDate);
         const targetDate = this.formatDateForAPI(this.goalForm.targetDate);
         
+        console.log('Formatted dates:', { startDate, targetDate });
+        
         // Create goal data object with proper uppercase property names
         const goalData = {
-          Id: this.goalForm.id,
+          Id: this.goalForm.id, // Include ID if editing
           Name: this.goalForm.name,
           Description: this.goalForm.description,
           MetricType: this.goalForm.metricType,
@@ -481,12 +484,16 @@ export default {
           IsCompleted: this.goalForm.isCompleted
         };
         
-        console.log('Saving goal with data:', goalData);
+        console.log('Prepared goal data for save:', goalData);
+        
+        let result;
         
         if (this.isEditing && this.goalForm.id) {
           // Update existing goal
           console.log(`Updating goal with ID: ${this.goalForm.id}`);
-          await this.$store.dispatch('updateGoal', goalData);
+          result = await this.$store.dispatch('updateGoal', goalData);
+          console.log('Goal update result:', result);
+          
           this.$store.dispatch('showMessage', {
             message: 'Goal updated successfully!',
             type: 'success'
@@ -494,7 +501,9 @@ export default {
         } else {
           // Create new goal
           console.log('Creating new goal');
-          await this.$store.dispatch('createGoal', goalData);
+          result = await this.$store.dispatch('createGoal', goalData);
+          console.log('Goal creation result:', result);
+          
           this.$store.dispatch('showMessage', {
             message: 'Goal created successfully!',
             type: 'success'
@@ -506,7 +515,7 @@ export default {
       } catch (error) {
         console.error('Error saving goal:', error);
         this.$store.dispatch('showMessage', {
-          message: 'Failed to save goal. Please try again.',
+          message: `Failed to save goal: ${error.message || 'Unknown error'}`,
           type: 'error'
         });
       } finally {
