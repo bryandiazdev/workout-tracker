@@ -1,0 +1,22 @@
+WORKOUT TRACKER API CONFIGURATION FIX
+
+Since your application is hosted at workout-tracker-client-three.vercel.app but we don't have access to deploy to that domain directly, you'll need to update your frontend to point to our new API endpoint.
+
+Here are the steps to fix the API configuration:
+
+1. Go to the Vercel dashboard and look for your most recent deployment URL. It should be something like:
+   https://workout-tracker-client-1kgrxowuk-bryandiazdevs-projects.vercel.app
+
+2. Update your frontend environment variables to use this URL for API calls:
+   - If you're using a .env file or environment variables, update VUE_APP_API_URL to:
+     VUE_APP_API_URL=https://workout-tracker-client-1kgrxowuk-bryandiazdevs-projects.vercel.app/api
+
+3. Alternatively, you could update your frontend code to directly use this URL:
+   - Find ApiService.js and update the API_URL constant:
+     const API_URL = 'https://workout-tracker-client-1kgrxowuk-bryandiazdevs-projects.vercel.app/api';
+
+4. Deploy your frontend with these updates.
+
+This will point your frontend application to the new API endpoints we've set up, which should resolve the 404 errors you're seeing.
+
+Note: The exact URL will depend on your most recent deployment. Replace the example URL above with your actual deployment URL. 
