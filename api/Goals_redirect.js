@@ -1,10 +1,7 @@
-// This file handles requests to /api/Goals and forwards them to the lowercase goals.js implementation
-const goalsHandler = require('./goals');
-
+// Redirect for /api/Goals (capital G) to correctly route to the Goals.js handler
 module.exports = (req, res) => {
-  console.log(`Received ${req.method} request to /api/Goals via redirect handler`);
-  console.log('URL path:', req.url);
-  
-  // Simply forward to the main goals.js handler
+  console.log('Redirecting from Goals_redirect.js to Goals.js');
+  // Simply forward the request to the Goals.js handler
+  const goalsHandler = require('./Goals.js');
   return goalsHandler(req, res);
 }; 
