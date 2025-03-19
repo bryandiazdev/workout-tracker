@@ -41,9 +41,29 @@ const storeConfig = {
       try {
         console.log('Creating goal with data:', goalData);
         
+        // Get the user ID from localStorage
+        let userId = null;
+        try {
+          const userProfile = localStorage.getItem('user_profile');
+          if (userProfile) {
+            const profile = JSON.parse(userProfile);
+            userId = profile.sub || profile.email;
+            console.log('User ID from profile:', userId);
+          }
+        } catch (error) {
+          console.error('Error getting user ID:', error);
+        }
+        
         // Ensure goal data has properly capitalized field names for API
-        const formattedGoal = ensureProperCasingForApi(goalData);
-        console.log('Formatted goal data for API:', formattedGoal);
+        const formattedGoal = {
+          ...ensureProperCasingForApi(goalData),
+          // Make sure User is properly formatted
+          User: {
+            Auth0Id: userId || (goalData.User?.Auth0Id || goalData.user?.auth0Id || 'unknown')
+          }
+        };
+        
+        console.log('Formatted goal data for API with user:', formattedGoal);
         
         // Make API call
         const response = await ApiService.post('Goals', formattedGoal);
@@ -54,12 +74,26 @@ const storeConfig = {
           throw new Error('No response from server');
         }
         
-        // If response doesn't have the expected format, normalize it
+        // If the API returned a goal without proper properties, we need to merge with our input data
         let createdGoal = response;
-        if (!response.Name && !response.name) {
-          console.warn('Response from API does not have expected goal properties');
-          // Try to normalize the response
-          createdGoal = normalizeGoalProperties(response);
+        
+        // If response doesn't contain essential properties but has an ID, merge with input
+        if (response.id || response._id) {
+          if (!response.Name && !response.name) {
+            console.log('API returned a goal without properties, merging with input data');
+            
+            createdGoal = {
+              ...normalizeGoalProperties(formattedGoal), // Use our input data
+              id: response.id || response._id, // But use the returned ID
+              _id: response.id || response._id,
+              createdDate: response.createdDate
+            };
+            
+            console.log('Merged goal data:', createdGoal);
+          } else {
+            // Try to normalize the response
+            createdGoal = normalizeGoalProperties(response);
+          }
         }
         
         console.log('Normalized created goal:', createdGoal);

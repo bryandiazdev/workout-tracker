@@ -461,7 +461,20 @@ export default {
     async saveGoal() {
       try {
         this.isSaving = true;
-        console.log('Starting goal save process...');
+        console.log('==== Starting Goal Save Process ====');
+        
+        // Get user ID from localStorage for debugging purposes
+        let userId = '';
+        try {
+          const userProfile = localStorage.getItem('user_profile');
+          if (userProfile) {
+            const profile = JSON.parse(userProfile);
+            userId = profile.sub || profile.email || '';
+            console.log('User ID from profile:', userId);
+          }
+        } catch (e) {
+          console.error('Error retrieving user ID:', e);
+        }
         
         // Format dates properly
         const startDate = this.formatDateForAPI(this.goalForm.startDate);
@@ -471,9 +484,8 @@ export default {
         
         // Create goal data object with proper uppercase property names
         const goalData = {
-          Id: this.goalForm.id, // Include ID if editing
           Name: this.goalForm.name,
-          Description: this.goalForm.description,
+          Description: this.goalForm.description || 'Goal created from workout tracker',
           MetricType: this.goalForm.metricType,
           Unit: this.goalForm.unit,
           StartingValue: parseFloat(this.goalForm.startingValue),
@@ -481,10 +493,18 @@ export default {
           TargetValue: parseFloat(this.goalForm.targetValue),
           StartDate: startDate,
           TargetDate: targetDate,
-          IsCompleted: this.goalForm.isCompleted
+          IsCompleted: false,
+          User: {
+            Auth0Id: userId
+          }
         };
         
-        console.log('Prepared goal data for save:', goalData);
+        // Only include ID if editing
+        if (this.isEditing && this.goalForm.id) {
+          goalData.Id = this.goalForm.id;
+        }
+        
+        console.log('Goal data prepared for save:', goalData);
         
         let result;
         
@@ -494,30 +514,23 @@ export default {
           result = await this.$store.dispatch('updateGoal', goalData);
           console.log('Goal update result:', result);
           
-          this.$store.dispatch('showMessage', {
-            message: 'Goal updated successfully!',
-            type: 'success'
-          });
+          NotificationService.showSuccess('Goal updated successfully!');
         } else {
           // Create new goal
-          console.log('Creating new goal');
+          console.log('Creating new goal with data:', JSON.stringify(goalData, null, 2));
           result = await this.$store.dispatch('createGoal', goalData);
           console.log('Goal creation result:', result);
           
-          this.$store.dispatch('showMessage', {
-            message: 'Goal created successfully!',
-            type: 'success'
-          });
+          NotificationService.showSuccess('Goal created successfully!');
         }
+        
+        console.log('==== Goal Save Process Completed Successfully ====');
         
         this.closeForm();
         await this.loadData();
       } catch (error) {
         console.error('Error saving goal:', error);
-        this.$store.dispatch('showMessage', {
-          message: `Failed to save goal: ${error.message || 'Unknown error'}`,
-          type: 'error'
-        });
+        NotificationService.showError(`Failed to save goal: ${error.message || 'Unknown error'}`);
       } finally {
         this.isSaving = false;
       }
@@ -1070,22 +1083,21 @@ export default {
       const startDate = new Date(this.goalForm.startDate).toISOString();
       const targetDate = new Date(this.goalForm.targetDate).toISOString();
       
-      // Make sure the User field is properly formatted
+      // Create a simpler goal object with just the necessary properties
       return {
-        "Name": this.goalForm.name || "New Goal", // Add a default to ensure it's never empty
+        "Name": this.goalForm.name || "New Goal",
         "Description": this.goalForm.description || "Goal created from workout tracker",
-        "Unit": this.goalForm.unit || "kg", // Add a default to ensure it's never empty
+        "Unit": this.goalForm.unit || "kg",
+        "MetricType": this.goalForm.metricType || "weight",
+        "StartingValue": parseFloat(this.goalForm.startingValue) || 0,
+        "CurrentValue": parseFloat(this.goalForm.currentValue) || 0,
+        "TargetValue": parseFloat(this.goalForm.targetValue) || 0,
+        "StartDate": startDate,
+        "TargetDate": targetDate,
+        "IsCompleted": false,
         "User": {
           "Auth0Id": userId
         },
-        "StartDate": startDate,
-        "TargetDate": targetDate,
-        "StartingValue": this.goalForm.startingValue || 0,
-        "CurrentValue": this.goalForm.currentValue || 0,
-        "TargetValue": this.goalForm.targetValue || 0,
-        "MetricType": this.goalForm.metricType || "weight",
-        "IsCompleted": this.goalForm.isCompleted || false,
-        // Include ID if editing an existing goal
         ...(this.goalForm.id ? { "Id": this.goalForm.id } : {})
       };
     },
