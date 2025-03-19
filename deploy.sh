@@ -36,11 +36,21 @@ else
     fi
 fi
 
-# Install dotenv for environment variable handling if not already present
-if ! grep -q "dotenv" WorkoutTracker.Client/package.json; then
-    echo "Adding dotenv package to dependencies..."
-    cd WorkoutTracker.Client && npm install --save dotenv && cd ..
+# Install required dependencies
+echo "Checking and installing required dependencies..."
+cd WorkoutTracker.Client
+# Check if webpack is installed
+if ! grep -q "webpack" package.json; then
+    echo "Installing webpack..."
+    npm install --save-dev webpack
 fi
+
+# Check if dotenv is installed
+if ! grep -q "dotenv" package.json; then
+    echo "Installing dotenv..."
+    npm install --save dotenv
+fi
+cd ..
 
 # Ask if the user wants to update environment variables
 read -p "Do you want to update environment variables in Vercel? (y/n): " update_env
@@ -89,9 +99,28 @@ EOF
         sed -i '' "s|VUE_APP_AUTH0_AUDIENCE=.*|VUE_APP_AUTH0_AUDIENCE=$auth0_audience|g" WorkoutTracker.Client/.env
         sed -i '' "s|VUE_APP_AUTH0_CALLBACK_URL=.*|VUE_APP_AUTH0_CALLBACK_URL=$auth0_callback_url|g" WorkoutTracker.Client/.env
     fi
+    
+    # Verify environment variables are set
+    echo "Verifying environment variables..."
+    if [ -f WorkoutTracker.Client/.env ]; then
+        echo "Local client .env file exists"
+        grep -v '^#' WorkoutTracker.Client/.env | grep -v '^$' | while read -r line; do
+            key=$(echo $line | cut -d= -f1)
+            echo "- $key: [value set]"
+        done
+    else
+        echo "Warning: Local client .env file not found."
+    fi
+    
+    echo "Verifying Vercel environment variables..."
+    vercel env ls | grep VUE_APP_
 fi
 
 # Deploy to Vercel
+echo ""
+echo "Rebuilding the application..."
+cd WorkoutTracker.Client && npm run build && cd ..
+
 echo ""
 echo "Deploying to Vercel..."
 vercel --prod

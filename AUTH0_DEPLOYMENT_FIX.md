@@ -5,53 +5,45 @@
 There was a problem with how the Auth0 authentication URL was being constructed. When attempting to log in, you were seeing an error with a URL like:
 
 ```
-https://vue_app_auth0_domain=dev-47c4icnwccbjdiz5.us.auth0.com/authorize?client_id=...
+vue_app_auth0_domain=dev-47c4icnwccbjdiz5.us.auth0.com/authorize?client_id=...
 ```
 
 This happened because the environment variable `VUE_APP_AUTH0_DOMAIN` wasn't being properly substituted during the build process, causing the literal text of the variable name to be included in the URL.
 
-## The Solution
+## The Updated Solution
 
-We've fixed this issue with several changes:
+We've fixed this issue with several enhancements to ensure environment variables are properly processed:
 
-1. **Updated AuthService.js**: Modified the login method to use Auth0's built-in authorize method instead of manually constructing the URL.
+1. **Enhanced AuthService.js**: Modified the service to use a runtime configuration approach that safely accesses environment variables.
 
-2. **Added dotenv support**: Added proper environment variable handling with dotenv in vue.config.js.
+2. **Improved webpack configuration**: Updated vue.config.js to use webpack's DefinePlugin to properly replace environment variables during the build process.
 
-3. **Created client-specific .env file**: Added a .env file directly in the WorkoutTracker.Client directory.
+3. **Better dependency management**: Added webpack as a dev dependency to ensure proper variable substitution.
 
-4. **Updated deploy.sh script**: Ensured environment variables are properly set up in both Vercel and local development environments.
+4. **Enhanced deployment script**: Updated deploy.sh to verify that environment variables are correctly set before deployment.
 
-## Callback URL Update
+## Security Benefits
 
-The Auth0 callback URL has been updated to match the correct deployment domain:
+This approach provides several security benefits:
 
-```diff
-- VUE_APP_AUTH0_CALLBACK_URL=https://workout-tracker-client-rose.vercel.app/callback
-+ VUE_APP_AUTH0_CALLBACK_URL=https://workout-tracker-rose.vercel.app/callback
-```
+1. **No hardcoded credentials**: Sensitive values are stored in environment variables, not in the code.
 
-This ensures that the redirect URI matches exactly what's configured in your Auth0 application settings. The correct callback URL is `https://workout-tracker-rose.vercel.app/callback`.
+2. **Better secret management**: Vercel securely stores environment variables separate from code.
+
+3. **Masked logging**: In development, sensitive values are masked in logs (only showing first few characters).
+
+4. **Production safety**: In production, the environment variables are properly injected during build time.
 
 ## Auth0 Application Configuration
 
-For reference, your Auth0 configuration values should be:
+For reference, your Auth0 configuration values should be stored as environment variables:
 
-- **Domain**: `dev-47c4icnwccbjdiz5.us.auth0.com`
-- **Client ID**: `6VxrjlK5YXdXm9FVX2GFPpBdwDShwuTc`
-- **Audience**: `https://workouttracker-api`
-- **Callback URL**: `https://workout-tracker-rose.vercel.app/callback`
+- **VUE_APP_AUTH0_DOMAIN**: Your Auth0 tenant domain
+- **VUE_APP_AUTH0_CLIENT_ID**: Your Auth0 application client ID
+- **VUE_APP_AUTH0_AUDIENCE**: API audience for authentication
+- **VUE_APP_AUTH0_CALLBACK_URL**: https://workout-tracker-rose.vercel.app/callback
 
-You may need to update your Auth0 application settings in the Auth0 dashboard to ensure the callback URL is authorized. To do this:
-
-1. Log in to your [Auth0 dashboard](https://manage.auth0.com/)
-2. Go to Applications > Applications
-3. Select your WorkoutTracker application
-4. Under "Application URIs" > "Allowed Callback URLs", add:
-   ```
-   https://workout-tracker-rose.vercel.app/callback
-   ```
-5. Click "Save Changes"
+Make sure your Auth0 application settings in the Auth0 dashboard match these values, particularly the callback URL.
 
 ## How to Deploy
 
@@ -64,13 +56,13 @@ Follow these steps to deploy with the fixed Auth0 authentication:
 
 2. When prompted, choose "y" to update environment variables
 
-3. Enter your Auth0 configuration values:
-   - Auth0 Domain: `dev-47c4icnwccbjdiz5.us.auth0.com`
-   - Auth0 Client ID: `6VxrjlK5YXdXm9FVX2GFPpBdwDShwuTc`
-   - Auth0 Audience: `https://workouttracker-api`
-   - Auth0 Callback URL: `https://workout-tracker-rose.vercel.app/callback`
+3. Enter your Auth0 configuration values when prompted
 
-4. The script will deploy your application to Vercel
+4. The script will:
+   - Install required dependencies
+   - Verify your environment variables
+   - Build the application with proper environment variable substitution
+   - Deploy to Vercel with environment variables securely stored
 
 ## Testing Authentication
 
@@ -79,13 +71,13 @@ After deploying, test authentication by:
 1. Visit your application at https://workout-tracker-rose.vercel.app
 2. Click on the login button
 3. You should be redirected to the Auth0 login page
-4. After logging in, you should be redirected back to your application 
+4. After logging in, you should be redirected back to your application
 
 ## Troubleshooting
 
 If you encounter any issues:
 
-1. **Check browser console**: Look for any errors related to Auth0 or environment variables
+1. **Check browser console**: Look for any Auth0 configuration logs to verify variables were injected
 
 2. **Verify environment variables in Vercel**: 
    ```bash
@@ -93,12 +85,14 @@ If you encounter any issues:
    ```
 
 3. **Check Auth0 application settings**:
-   - Make sure the callback URL in Auth0 matches what you've set up
+   - Make sure the callback URL in Auth0 matches your environment variable
    - Confirm that the application type is set to "Single Page Application"
-   - Verify that the Auth0 application has the correct API permissions
 
 4. **Run locally to debug**:
    ```bash
    cd WorkoutTracker.Client
    npm run dev
-   ``` 
+   ```
+   
+5. **Examine build logs**:
+   Look for the "Building with environment variables:" section in the build logs to confirm that variables are being detected during build. 

@@ -1,47 +1,56 @@
 import auth0 from 'auth0-js';
 import DebugService from './DebugService';
 
-// Get environment-specific callback URL
-const getCallbackUrl = () => {
-  // Use environment variable if available, otherwise fallback to reasonable defaults
-  if (process.env.VUE_APP_AUTH0_CALLBACK_URL) {
-    return process.env.VUE_APP_AUTH0_CALLBACK_URL;
-  }
-  // In production, use the deployed URL
-  if (process.env.NODE_ENV === 'production') {
-    // Get the base URL from the current window location
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/callback`;
-  }
-  // In development, use localhost
-  return 'http://localhost:8080/callback';
+// Configuration object to hold Auth0 settings
+// This gets the environment variables at runtime
+const getConfig = () => {
+  // For Auth0 domain
+  const domain = process.env.VUE_APP_AUTH0_DOMAIN;
+  // For Auth0 client ID
+  const clientID = process.env.VUE_APP_AUTH0_CLIENT_ID;
+  // For Auth0 audience
+  const audience = process.env.VUE_APP_AUTH0_AUDIENCE;
+  // For callback URL
+  const callbackUrl = process.env.VUE_APP_AUTH0_CALLBACK_URL || 'https://workout-tracker-rose.vercel.app/callback';
+  
+  // Log config for debugging
+  console.log('Auth0 Configuration (masked):');
+  console.log('Domain:', domain ? domain.substring(0, 5) + '...' : 'Not set');
+  console.log('Client ID:', clientID ? clientID.substring(0, 5) + '...' : 'Not set');
+  console.log('Audience:', audience ? audience.substring(0, 5) + '...' : 'Not set');
+  console.log('Callback URL:', callbackUrl ? callbackUrl.substring(0, 10) + '...' : 'Not set');
+  
+  // Return the config
+  return {
+    domain,
+    clientID,
+    audience,
+    callbackUrl,
+    responseType: 'token id_token',
+    scope: 'openid profile email'
+  };
 };
 
 class AuthService {
   constructor() {
-    const callbackUrl = getCallbackUrl();
+    const config = getConfig();
     
-    // Debug Auth0 configuration
-    console.log('Auth0 Configuration:');
-    console.log('Domain:', process.env.VUE_APP_AUTH0_DOMAIN);
-    console.log('Client ID:', process.env.VUE_APP_AUTH0_CLIENT_ID ? '[SET]' : '[NOT SET]');
-    console.log('Audience:', process.env.VUE_APP_AUTH0_AUDIENCE);
-    console.log('Redirect URI:', callbackUrl);
-    
+    // Log to debugging service
     DebugService.logAuth('Auth0 Configuration initialized', {
-      domain: process.env.VUE_APP_AUTH0_DOMAIN,
-      clientIdSet: !!process.env.VUE_APP_AUTH0_CLIENT_ID,
-      audience: process.env.VUE_APP_AUTH0_AUDIENCE,
-      redirectUri: callbackUrl
+      domainSet: !!config.domain,
+      clientIdSet: !!config.clientID,
+      audienceSet: !!config.audience,
+      redirectUri: config.callbackUrl
     });
     
+    // Initialize Auth0 WebAuth with our config
     this.auth0 = new auth0.WebAuth({
-      domain: process.env.VUE_APP_AUTH0_DOMAIN,
-      clientID: process.env.VUE_APP_AUTH0_CLIENT_ID,
-      redirectUri: callbackUrl,
-      audience: process.env.VUE_APP_AUTH0_AUDIENCE,
-      responseType: 'token id_token',
-      scope: 'openid profile email'
+      domain: config.domain,
+      clientID: config.clientID,
+      redirectUri: config.callbackUrl,
+      audience: config.audience,
+      responseType: config.responseType,
+      scope: config.scope
     });
 
     this.login = this.login.bind(this);
