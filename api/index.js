@@ -24,27 +24,44 @@ module.exports = async (req, res) => {
   const segments = path.split('/').filter(Boolean);
   
   // Extract the endpoint name (lowercase for consistency)
-  const endpoint = segments.length > 0 ? segments[0].toLowerCase() : '';
+  // Fix: Check if the first segment is 'api', if so use the second segment as the endpoint
+  let endpoint = '';
+  if (segments.length > 0) {
+    if (segments[0].toLowerCase() === 'api' && segments.length > 1) {
+      // If URL contains /api/endpoint format
+      endpoint = segments[1].toLowerCase();
+      console.log(`Found API prefix in URL, using second segment as endpoint: ${endpoint}`);
+    } else {
+      // If URL is just /endpoint format (no /api/ prefix)
+      endpoint = segments[0].toLowerCase();
+      console.log(`No API prefix in URL, using first segment as endpoint: ${endpoint}`);
+    }
+  }
+
   console.log(`Routing request to endpoint: ${endpoint}`);
   
   try {
     // Route to the appropriate handler based on the endpoint
     switch (endpoint) {
       case 'goals':
-        // Handle both /api/goals and /api/Goals
+      case 'goals_redirect':
+      case 'lowercase-goals':
+      case 'Goals':
+        // Handle all goals-related endpoints
         return await goalsHandler(req, res);
         
       case 'workoutlogs':
       case 'workoutlogs':
+      case 'WorkoutLogs':
         // Handle workout logs endpoint
         return await handleWorkoutLogs(req, res);
         
       case 'workoutplans':
       case 'workoutplans':
+      case 'WorkoutPlans':
         // Handle workout plans endpoint
         return await handleWorkoutPlans(req, res);
         
-      case 'users':
       case 'users':
         // Handle users endpoint
         return await handleUsers(req, res);
@@ -70,7 +87,9 @@ module.exports = async (req, res) => {
         console.log(`No handler found for endpoint: ${endpoint}`);
         return res.status(404).json({
           message: `Endpoint '${endpoint}' not found`,
-          note: "API has been consolidated to work within Vercel's function limits"
+          note: "API has been consolidated to work within Vercel's function limits",
+          url: req.url,
+          segments: segments
         });
     }
   } catch (error) {
