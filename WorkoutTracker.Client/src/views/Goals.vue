@@ -487,27 +487,30 @@ export default {
         const currentValue = parseFloat(this.goalForm.currentValue) || 0;
         const targetValue = parseFloat(this.goalForm.targetValue) || 0;
         
-        // Create goal data object to EXACTLY match the working MongoDB document
-        // This structure is based on the successful record (67dade72f1069d0f4496b384)
+        // Map the selected metricType to the C# GoalType enum
+        function mapMetricTypeToEnum(metricType) {
+          const metricTypeMap = {
+            'weight': 'Weight',
+            'strength': 'Strength',
+            'workout_frequency': 'Frequency',
+            'distance': 'Endurance',
+            'calories': 'Other'
+          };
+          
+          return metricTypeMap[metricType?.toLowerCase()] || 'Other';
+        }
+        
+        // Create goal data object to match the C# Goal model structure
         const goalData = {
-          // These MUST be capitalized exactly as in MongoDB
           Name: this.goalForm.name.trim(),
           Description: (this.goalForm.description || 'Goal created from workout tracker').trim(),
           Unit: this.goalForm.unit,
-          User: {
-            Auth0Id: userId
-          },
+          Type: mapMetricTypeToEnum(this.goalForm.metricType),
           StartDate: startDate,
           TargetDate: targetDate,
-          StartingValue: startingValue,
           CurrentValue: currentValue,
           TargetValue: targetValue,
-          MetricType: this.goalForm.metricType,
-          IsCompleted: false,
-          // Include these additional fields to match MongoDB structure
-          userId: userId,
-          isCompleted: false, // Note that both IsCompleted and isCompleted exist in the document
-          progresses: []
+          IsCompleted: this.goalForm.isCompleted || false
         };
         
         // Only include ID if editing
@@ -515,7 +518,7 @@ export default {
           goalData.Id = this.goalForm.id;
         }
         
-        console.log('Goal data prepared with exact MongoDB format:', JSON.stringify(goalData, null, 2));
+        console.log('Goal data formatted for C# API:', JSON.stringify(goalData, null, 2));
         
         let result;
         
@@ -528,7 +531,7 @@ export default {
           NotificationService.showSuccess('Goal updated successfully!');
         } else {
           // Create new goal 
-          console.log('Creating new goal with MongoDB format data');
+          console.log('Creating new goal with C# API format data');
           result = await this.$store.dispatch('createGoal', goalData);
           console.log('Goal creation result:', result);
           

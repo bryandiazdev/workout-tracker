@@ -54,38 +54,39 @@ const storeConfig = {
           console.error('Error getting user ID:', error);
         }
         
-        // Prepare goal data to EXACTLY match the working MongoDB document structure
-        // This needs to match the format in the working record (67dade72f1069d0f4496b384)
-        const mongoFormatGoal = {
-          // These fields MUST be capitalized exactly as in MongoDB
+        // Convert MetricType string to GoalType enum expected by the C# API
+        // The API expects a GoalType enum: Weight, Strength, Endurance, Frequency, Other
+        function mapMetricTypeToEnum(metricType) {
+          const metricTypeMap = {
+            'weight': 'Weight',
+            'strength': 'Strength',
+            'workout_frequency': 'Frequency',
+            'distance': 'Endurance',
+            'calories': 'Other'
+          };
+          
+          return metricTypeMap[metricType?.toLowerCase()] || 'Other';
+        }
+        
+        // Format for C# API using the properties expected by the Goal.cs model
+        const apiGoalFormat = {
           Name: goalData.Name || goalData.name || '',
           Description: goalData.Description || goalData.description || 'Goal created from workout tracker',
           Unit: goalData.Unit || goalData.unit || 'kg',
-          User: {
-            Auth0Id: userId || (goalData.User?.Auth0Id || goalData.user?.auth0Id || 'unknown')
-          },
+          // Convert string metric type to GoalType enum value
+          Type: mapMetricTypeToEnum(goalData.MetricType || goalData.metricType),
           StartDate: goalData.StartDate || goalData.startDate || new Date().toISOString(),
           TargetDate: goalData.TargetDate || goalData.targetDate || new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
-          StartingValue: parseFloat(goalData.StartingValue || goalData.startingValue) || 0,
-          CurrentValue: parseFloat(goalData.CurrentValue || goalData.currentValue) || 0,
           TargetValue: parseFloat(goalData.TargetValue || goalData.targetValue) || 0,
-          MetricType: goalData.MetricType || goalData.metricType || 'weight',
-          IsCompleted: false,
-          // These additional fields match what we see in the MongoDB document
-          userId: userId, // This appears to be a flattened field in MongoDB
-          isCompleted: false, // Note: both cases exist in the document!
-          progresses: []
+          CurrentValue: parseFloat(goalData.CurrentValue || goalData.currentValue) || 0,
+          IsCompleted: false
         };
         
-        // Remove any undefined values
-        Object.keys(mongoFormatGoal).forEach(key => 
-          mongoFormatGoal[key] === undefined && delete mongoFormatGoal[key]
-        );
-        
-        console.log('Exact MongoDB document format for goal:', JSON.stringify(mongoFormatGoal, null, 2));
+        // Log the C# API formatted goal for debugging
+        console.log('Goal formatted for C# API:', JSON.stringify(apiGoalFormat, null, 2));
         
         // Make API call to create the goal
-        const response = await ApiService.post('Goals', mongoFormatGoal);
+        const response = await ApiService.post('Goals', apiGoalFormat);
         console.log('Create goal API response:', response);
         
         // Check if we got a proper response
@@ -109,9 +110,9 @@ const storeConfig = {
         if (!response.Name) {
           console.log('API returned response with missing required properties - performing immediate update');
           
-          // Add the ID to our MongoDB format goal
+          // Add the ID to our API format goal
           const updateGoal = {
-            ...mongoFormatGoal,
+            ...apiGoalFormat,
             Id: newGoalId  // Include ID for the update operation
           };
           
@@ -127,7 +128,7 @@ const storeConfig = {
             } else {
               // If update response is missing, use our original data with the ID
               createdGoal = {
-                ...normalizeGoalProperties(mongoFormatGoal),
+                ...normalizeGoalProperties(apiGoalFormat),
                 id: newGoalId,
                 _id: newGoalId,
                 createdDate: new Date().toISOString()
@@ -138,7 +139,7 @@ const storeConfig = {
             
             // Fall back to our prepared data with the ID
             createdGoal = {
-              ...normalizeGoalProperties(mongoFormatGoal),
+              ...normalizeGoalProperties(apiGoalFormat),
               id: newGoalId,
               _id: newGoalId,
               createdDate: new Date().toISOString()
@@ -167,18 +168,42 @@ const storeConfig = {
       try {
         console.log('Updating goal with data:', goalData);
         
-        // Ensure goal data has properly capitalized field names for API
-        const formattedGoal = ensureProperCasingForApi(goalData);
-        
         // Make sure we have a valid ID
-        if (!formattedGoal.Id) {
+        if (!goalData.Id) {
           throw new Error('Goal ID is required for update');
         }
         
-        console.log('Formatted goal data for update:', formattedGoal);
+        // Convert MetricType to GoalType enum if needed
+        function mapMetricTypeToEnum(metricType) {
+          const metricTypeMap = {
+            'weight': 'Weight',
+            'strength': 'Strength',
+            'workout_frequency': 'Frequency',
+            'distance': 'Endurance',
+            'calories': 'Other'
+          };
+          
+          return metricTypeMap[metricType?.toLowerCase()] || 'Other';
+        }
         
-        // Send the update request with the properly capitalized ID
-        const response = await ApiService.put(`Goals/${formattedGoal.Id}`, formattedGoal);
+        // Format the goal data for the C# API
+        const apiGoalFormat = {
+          Id: goalData.Id,
+          Name: goalData.Name || goalData.name || '',
+          Description: goalData.Description || goalData.description || '',
+          Unit: goalData.Unit || goalData.unit || '',
+          Type: goalData.Type || mapMetricTypeToEnum(goalData.MetricType || goalData.metricType),
+          StartDate: goalData.StartDate || goalData.startDate,
+          TargetDate: goalData.TargetDate || goalData.targetDate,
+          TargetValue: parseFloat(goalData.TargetValue || goalData.targetValue) || 0,
+          CurrentValue: parseFloat(goalData.CurrentValue || goalData.currentValue) || 0,
+          IsCompleted: goalData.IsCompleted || goalData.isCompleted || false
+        };
+        
+        console.log('Formatted goal data for C# API update:', apiGoalFormat);
+        
+        // Send the update request
+        const response = await ApiService.put(`Goals/${apiGoalFormat.Id}`, apiGoalFormat);
         console.log('Update goal response:', response);
         
         // Refresh goals list
@@ -237,16 +262,31 @@ const storeConfig = {
 function normalizeGoalProperties(goal) {
   if (!goal) return {};
   
+  // Convert GoalType enum to metricType string for UI
+  function mapEnumToMetricType(type) {
+    if (!type) return 'weight';
+    
+    const typeMap = {
+      'Weight': 'weight',
+      'Strength': 'strength',
+      'Frequency': 'workout_frequency',
+      'Endurance': 'distance',
+      'Other': 'other'
+    };
+    
+    return typeMap[type] || 'weight';
+  }
+  
   return {
     id: goal.Id || goal.id,
     name: goal.Name || goal.name,
     description: goal.Description || goal.description,
     startDate: goal.StartDate || goal.startDate,
     targetDate: goal.TargetDate || goal.targetDate,
-    startingValue: goal.StartingValue || goal.startingValue,
+    startingValue: goal.StartingValue || goal.startingValue || goal.CurrentValue || goal.currentValue,
     currentValue: goal.CurrentValue || goal.currentValue,
     targetValue: goal.TargetValue || goal.targetValue,
-    metricType: goal.MetricType || goal.metricType, 
+    metricType: goal.MetricType || goal.metricType || mapEnumToMetricType(goal.Type || goal.type), 
     unit: goal.Unit || goal.unit,
     isCompleted: goal.IsCompleted || goal.isCompleted,
     // Preserve original data for debugging
