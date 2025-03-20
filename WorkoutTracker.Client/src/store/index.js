@@ -54,19 +54,28 @@ const storeConfig = {
           console.error('Error getting user ID:', error);
         }
         
-        // Ensure goal data has properly capitalized field names for API
-        const formattedGoal = {
-          ...ensureProperCasingForApi(goalData),
-          // Make sure User is properly formatted
+        // Ensure the data exactly matches the format of working MongoDB documents
+        // Make sure all property names use proper capitalization
+        const exactFormatGoal = {
+          Name: goalData.Name || goalData.name || '',
+          Description: goalData.Description || goalData.description || 'Goal created from workout tracker',
+          Unit: goalData.Unit || goalData.unit || 'kg',
+          MetricType: goalData.MetricType || goalData.metricType || 'weight',
+          StartingValue: parseFloat(goalData.StartingValue || goalData.startingValue) || 0,
+          CurrentValue: parseFloat(goalData.CurrentValue || goalData.currentValue) || 0,
+          TargetValue: parseFloat(goalData.TargetValue || goalData.targetValue) || 0,
+          StartDate: goalData.StartDate || goalData.startDate || new Date().toISOString(),
+          TargetDate: goalData.TargetDate || goalData.targetDate || new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
+          IsCompleted: goalData.IsCompleted || goalData.isCompleted || false,
           User: {
             Auth0Id: userId || (goalData.User?.Auth0Id || goalData.user?.auth0Id || 'unknown')
           }
         };
         
-        console.log('Formatted goal data for API with user:', formattedGoal);
+        console.log('Exact MongoDB format for goal API call:', JSON.stringify(exactFormatGoal, null, 2));
         
-        // Make API call to create the goal (this may return just an ID)
-        const response = await ApiService.post('Goals', formattedGoal);
+        // Make API call to create the goal
+        const response = await ApiService.post('Goals', exactFormatGoal);
         console.log('Create goal API response:', response);
         
         // Check if we got a proper response
@@ -84,45 +93,62 @@ const storeConfig = {
         
         console.log('New goal created with ID:', newGoalId);
         
-        // Since the API sometimes returns a record with null values,
-        // immediately follow up with an update to ensure the data is saved properly
+        // If API returned just an ID with null values, we need to immediately update
+        // the goal with the complete data to fix the null values issue
+        let createdGoal;
+        
         if (!response.Name && !response.name) {
-          console.log('API returned goal with missing properties - performing immediate update');
+          console.log('API returned response with missing properties - performing immediate update');
           
-          // Create the merged goal object with the new ID
-          const mergedGoal = {
-            ...formattedGoal,
+          // Add the ID to our exact format goal
+          const updateGoal = {
+            ...exactFormatGoal,
             Id: newGoalId
           };
           
-          console.log('Performing immediate update with merged data:', mergedGoal);
+          console.log('Performing immediate update with full data:', JSON.stringify(updateGoal, null, 2));
           
           try {
             // Immediately update the goal with the full data
-            await ApiService.put(`Goals/${newGoalId}`, mergedGoal);
-            console.log('Immediate update successful');
+            const updateResponse = await ApiService.put(`Goals/${newGoalId}`, updateGoal);
+            console.log('Immediate update response:', updateResponse);
+            
+            // If update was successful, use the update response
+            if (updateResponse) {
+              createdGoal = normalizeGoalProperties(updateResponse);
+            } else {
+              // Otherwise use our original data with the new ID
+              createdGoal = {
+                ...normalizeGoalProperties(exactFormatGoal),
+                id: newGoalId,
+                _id: newGoalId,
+                createdDate: new Date().toISOString()
+              };
+            }
           } catch (updateError) {
             console.error('Error during immediate update:', updateError);
-            // Even if update fails, continue - we'll still have the goal in the local state
+            // Create a local goal object with combined data
+            createdGoal = {
+              ...normalizeGoalProperties(exactFormatGoal),
+              id: newGoalId,
+              _id: newGoalId,
+              createdDate: new Date().toISOString(),
+              userId: userId
+            };
           }
+        } else {
+          // Response has the goal properties already
+          createdGoal = normalizeGoalProperties(response);
+          console.log('Goal created successfully with properties:', createdGoal);
         }
         
-        // Create a complete goal object for the local state
-        const completeGoal = {
-          ...normalizeGoalProperties(formattedGoal),
-          id: newGoalId,
-          _id: newGoalId,
-          createdDate: response.createdDate || new Date().toISOString(),
-          userId: response.userId || userId
-        };
-        
         // Add the goal to the store
-        commit('addGoal', completeGoal);
+        commit('addGoal', createdGoal);
         
         // Refresh goals from API to ensure consistency
         await dispatch('fetchGoals');
         
-        return completeGoal;
+        return createdGoal;
       } catch (error) {
         console.error('Error creating goal:', error);
         throw error;

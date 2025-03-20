@@ -487,7 +487,8 @@ export default {
         const currentValue = parseFloat(this.goalForm.currentValue) || 0;
         const targetValue = parseFloat(this.goalForm.targetValue) || 0;
         
-        // Create goal data object with proper uppercase property names and correct data types
+        // Create goal data object matching EXACTLY the format of working goals
+        // This matches the structure seen in the working MongoDB document
         const goalData = {
           Name: this.goalForm.name.trim(),
           Description: (this.goalForm.description || 'Goal created from workout tracker').trim(),
@@ -498,7 +499,8 @@ export default {
           TargetValue: targetValue,
           StartDate: startDate,
           TargetDate: targetDate,
-          IsCompleted: this.goalForm.isCompleted || false,
+          IsCompleted: false,
+          // Correctly format the User object
           User: {
             Auth0Id: userId
           }
@@ -509,12 +511,7 @@ export default {
           goalData.Id = this.goalForm.id;
         }
         
-        console.log('Goal data prepared for save (with explicit data types):', goalData);
-        console.log('StartDate type:', typeof startDate, 'StartDate value:', startDate);
-        console.log('TargetDate type:', typeof targetDate, 'TargetDate value:', targetDate);
-        console.log('StartingValue type:', typeof startingValue, 'StartingValue value:', startingValue);
-        console.log('CurrentValue type:', typeof currentValue, 'CurrentValue value:', currentValue);
-        console.log('TargetValue type:', typeof targetValue, 'TargetValue value:', targetValue);
+        console.log('Goal data prepared for save (EXACT MongoDB format):', JSON.stringify(goalData, null, 2));
         
         let result;
         
@@ -526,10 +523,40 @@ export default {
           
           NotificationService.showSuccess('Goal updated successfully!');
         } else {
-          // Create new goal
-          console.log('Creating new goal with data:', JSON.stringify(goalData, null, 2));
-          result = await this.$store.dispatch('createGoal', goalData);
-          console.log('Goal creation result:', result);
+          // For direct API call bypassing store
+          if (false) {
+            // Only use this for debugging - direct API call
+            console.log('Making direct API call to create goal...');
+            
+            // Prepare headers
+            let authToken = localStorage.getItem('auth_token');
+            if (authToken && !authToken.startsWith('Bearer ')) {
+              authToken = `Bearer ${authToken}`;
+            }
+            
+            const headers = {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': authToken
+            };
+            
+            // Make direct API call
+            const response = await fetch('/api/Goals', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(goalData),
+              credentials: 'include',
+              mode: 'cors'
+            });
+            
+            result = await response.json();
+            console.log('Direct API goal creation result:', result);
+          } else {
+            // Create new goal via store
+            console.log('Creating new goal with data via store action');
+            result = await this.$store.dispatch('createGoal', goalData);
+            console.log('Goal creation result:', result);
+          }
           
           // Store notification preference in localStorage to show after page reload if needed
           localStorage.setItem('goal_created_success', 'true');
