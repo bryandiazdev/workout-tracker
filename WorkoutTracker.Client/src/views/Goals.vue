@@ -88,6 +88,11 @@
             </div>
           </div>
           
+          <!-- Add a clean progress indicator -->
+          <div class="goal-progress-summary">
+            {{ formatProgressSummary(goal) }}
+          </div>
+          
           <div class="goal-actions">
             <button class="btn btn-primary" @click="editGoal(goal)">Edit</button>
             <button class="btn btn-danger" @click="confirmDeleteGoal(goal.Id || goal._id || goal.id)">Delete</button>
@@ -598,10 +603,10 @@ export default {
       // Handle cases where the goal is to decrease (e.g., weight loss)
       if (targetValue < startingValue) {
         const invertedProgress = ((startingValue - currentValue) / (startingValue - targetValue)) * 100;
-        return Math.max(0, Math.min(100, invertedProgress));
+        return Math.min(100, Math.max(0, invertedProgress));
       }
       
-      return Math.max(0, Math.min(100, progress));
+      return Math.min(100, Math.max(0, progress));
     },
     
     confirmDeleteGoal(id) {
@@ -1425,6 +1430,22 @@ export default {
         NotificationService.showError('Failed to load goals. Please try again.');
       }
     },
+    
+    formatProgressSummary(goal) {
+      // Handle null or undefined goal
+      if (!goal) return 'No data available';
+
+      // First check if the goal is completed
+      if (goal.IsCompleted || goal.isCompleted) {
+        return 'Goal Completed! 🎉';
+      }
+      
+      // Calculate percentage with bounds checking
+      const percentage = Math.round(this.getProgressPercentage(goal));
+      
+      // Return a clean formatted string
+      return `Progress: ${percentage}% Complete`;
+    },
   },
   created() {
     console.log('Goals component created - checking for authentication');
@@ -1756,5 +1777,14 @@ export default {
     flex-direction: column;
     gap: 10px;
   }
+}
+
+/* Add this to the style section */
+.goal-progress-summary {
+  text-align: center;
+  margin: 10px 0;
+  font-weight: 500;
+  color: #4a5568;
+  font-size: 0.95rem;
 }
 </style> 
