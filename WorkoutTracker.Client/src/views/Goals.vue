@@ -482,15 +482,20 @@ export default {
         
         console.log('Formatted dates:', { startDate, targetDate });
         
-        // Create goal data object with proper uppercase property names
+        // Ensure all numeric values are properly parsed as numbers
+        const startingValue = parseFloat(this.goalForm.startingValue) || 0;
+        const currentValue = parseFloat(this.goalForm.currentValue) || 0;
+        const targetValue = parseFloat(this.goalForm.targetValue) || 0;
+        
+        // Create goal data object with proper uppercase property names and correct data types
         const goalData = {
-          Name: this.goalForm.name,
-          Description: this.goalForm.description || 'Goal created from workout tracker',
+          Name: this.goalForm.name.trim(),
+          Description: (this.goalForm.description || 'Goal created from workout tracker').trim(),
           MetricType: this.goalForm.metricType,
           Unit: this.goalForm.unit,
-          StartingValue: parseFloat(this.goalForm.startingValue),
-          CurrentValue: parseFloat(this.goalForm.currentValue),
-          TargetValue: parseFloat(this.goalForm.targetValue),
+          StartingValue: startingValue,
+          CurrentValue: currentValue,
+          TargetValue: targetValue,
           StartDate: startDate,
           TargetDate: targetDate,
           IsCompleted: this.goalForm.isCompleted || false,
@@ -504,7 +509,12 @@ export default {
           goalData.Id = this.goalForm.id;
         }
         
-        console.log('Goal data prepared for save:', goalData);
+        console.log('Goal data prepared for save (with explicit data types):', goalData);
+        console.log('StartDate type:', typeof startDate, 'StartDate value:', startDate);
+        console.log('TargetDate type:', typeof targetDate, 'TargetDate value:', targetDate);
+        console.log('StartingValue type:', typeof startingValue, 'StartingValue value:', startingValue);
+        console.log('CurrentValue type:', typeof currentValue, 'CurrentValue value:', currentValue);
+        console.log('TargetValue type:', typeof targetValue, 'TargetValue value:', targetValue);
         
         let result;
         
@@ -1081,27 +1091,40 @@ export default {
         console.error('Error retrieving user ID:', e);
       }
       
-      // Format dates correctly
+      // Format dates correctly - ensure they're ISO strings
       const startDate = new Date(this.goalForm.startDate).toISOString();
       const targetDate = new Date(this.goalForm.targetDate).toISOString();
       
-      // Create a simpler goal object with just the necessary properties
-      return {
-        "Name": this.goalForm.name || "New Goal",
-        "Description": this.goalForm.description || "Goal created from workout tracker",
+      // Parse numeric values properly
+      const startingValue = parseFloat(this.goalForm.startingValue) || 0;
+      const currentValue = parseFloat(this.goalForm.currentValue) || 0;
+      const targetValue = parseFloat(this.goalForm.targetValue) || 0;
+      
+      // Create a complete, properly-formatted goal object
+      // This matches the structure of working goals in the database
+      const goal = {
+        "Name": this.goalForm.name.trim() || "New Goal",
+        "Description": (this.goalForm.description || "Goal created from workout tracker").trim(),
         "Unit": this.goalForm.unit || "kg",
         "MetricType": this.goalForm.metricType || "weight",
-        "StartingValue": parseFloat(this.goalForm.startingValue) || 0,
-        "CurrentValue": parseFloat(this.goalForm.currentValue) || 0,
-        "TargetValue": parseFloat(this.goalForm.targetValue) || 0,
+        "StartingValue": startingValue,
+        "CurrentValue": currentValue,
+        "TargetValue": targetValue,
         "StartDate": startDate,
         "TargetDate": targetDate,
         "IsCompleted": false,
         "User": {
           "Auth0Id": userId
-        },
-        ...(this.goalForm.id ? { "Id": this.goalForm.id } : {})
+        }
       };
+      
+      // Only include ID if editing an existing goal
+      if (this.goalForm.id) {
+        goal.Id = this.goalForm.id;
+      }
+      
+      console.log("Formatted API goal object:", goal);
+      return goal;
     },
     
     // Check if the user is authenticated

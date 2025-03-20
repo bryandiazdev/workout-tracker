@@ -65,7 +65,7 @@ const storeConfig = {
         
         console.log('Formatted goal data for API with user:', formattedGoal);
         
-        // Make API call
+        // Make API call to create the goal (this may return just an ID)
         const response = await ApiService.post('Goals', formattedGoal);
         console.log('Create goal API response:', response);
         
@@ -74,57 +74,55 @@ const storeConfig = {
           throw new Error('No response from server');
         }
         
-        // If the API returned a goal without proper properties, we need to merge with our input data
-        let createdGoal;
+        // Get the ID from the response
+        const newGoalId = response.id || response._id || response.Id;
         
-        // If the response has an ID but is missing goal data
-        if (response.id || response._id || response.Id) {
-          console.log('Response contains an ID:', response.id || response._id || response.Id);
-          
-          // Check if the response is missing critical goal properties
-          if (!response.Name && !response.name && !response.Description && !response.description) {
-            console.log('API response missing goal properties - merging with input data');
-            
-            // Create a complete goal by combining the response ID with our input data
-            createdGoal = {
-              // Start with our normalized input data
-              ...normalizeGoalProperties(formattedGoal),
-              
-              // Override with the ID from the response
-              id: response.id || response._id || response.Id,
-              _id: response.id || response._id || response.Id,
-              
-              // Include any other fields from the response
-              createdDate: response.createdDate || new Date().toISOString(),
-              userId: response.userId || userId
-            };
-            
-            console.log('Created merged goal with input data:', createdGoal);
-            
-            // Add this goal directly to the state
-            commit('addGoal', createdGoal);
-          } else {
-            // Response has both ID and some goal properties
-            createdGoal = normalizeGoalProperties(response);
-            console.log('Normalized goal from response:', createdGoal);
-            
-            // Add this goal directly to the state
-            commit('addGoal', createdGoal);
-          }
-        } else {
-          // Unexpected response format
-          console.warn('Unexpected API response format:', response);
-          createdGoal = normalizeGoalProperties(formattedGoal);
-          createdGoal.id = Math.random().toString(36).substr(2, 9); // Generate a temporary ID
-          
-          // Add this goal directly to the state
-          commit('addGoal', createdGoal);
+        if (!newGoalId) {
+          console.error('Failed to get goal ID from API response');
+          throw new Error('Goal ID not found in API response');
         }
         
-        // We've already added the goal to the state, but still refresh from API to ensure consistency
-        dispatch('fetchGoals');
+        console.log('New goal created with ID:', newGoalId);
         
-        return createdGoal;
+        // Since the API sometimes returns a record with null values,
+        // immediately follow up with an update to ensure the data is saved properly
+        if (!response.Name && !response.name) {
+          console.log('API returned goal with missing properties - performing immediate update');
+          
+          // Create the merged goal object with the new ID
+          const mergedGoal = {
+            ...formattedGoal,
+            Id: newGoalId
+          };
+          
+          console.log('Performing immediate update with merged data:', mergedGoal);
+          
+          try {
+            // Immediately update the goal with the full data
+            await ApiService.put(`Goals/${newGoalId}`, mergedGoal);
+            console.log('Immediate update successful');
+          } catch (updateError) {
+            console.error('Error during immediate update:', updateError);
+            // Even if update fails, continue - we'll still have the goal in the local state
+          }
+        }
+        
+        // Create a complete goal object for the local state
+        const completeGoal = {
+          ...normalizeGoalProperties(formattedGoal),
+          id: newGoalId,
+          _id: newGoalId,
+          createdDate: response.createdDate || new Date().toISOString(),
+          userId: response.userId || userId
+        };
+        
+        // Add the goal to the store
+        commit('addGoal', completeGoal);
+        
+        // Refresh goals from API to ensure consistency
+        await dispatch('fetchGoals');
+        
+        return completeGoal;
       } catch (error) {
         console.error('Error creating goal:', error);
         throw error;
