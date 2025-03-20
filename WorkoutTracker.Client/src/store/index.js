@@ -54,28 +54,38 @@ const storeConfig = {
           console.error('Error getting user ID:', error);
         }
         
-        // Ensure the data exactly matches the format of working MongoDB documents
-        // Make sure all property names use proper capitalization
-        const exactFormatGoal = {
+        // Prepare goal data to EXACTLY match the working MongoDB document structure
+        // This needs to match the format in the working record (67dade72f1069d0f4496b384)
+        const mongoFormatGoal = {
+          // These fields MUST be capitalized exactly as in MongoDB
           Name: goalData.Name || goalData.name || '',
           Description: goalData.Description || goalData.description || 'Goal created from workout tracker',
           Unit: goalData.Unit || goalData.unit || 'kg',
-          MetricType: goalData.MetricType || goalData.metricType || 'weight',
+          User: {
+            Auth0Id: userId || (goalData.User?.Auth0Id || goalData.user?.auth0Id || 'unknown')
+          },
+          StartDate: goalData.StartDate || goalData.startDate || new Date().toISOString(),
+          TargetDate: goalData.TargetDate || goalData.targetDate || new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
           StartingValue: parseFloat(goalData.StartingValue || goalData.startingValue) || 0,
           CurrentValue: parseFloat(goalData.CurrentValue || goalData.currentValue) || 0,
           TargetValue: parseFloat(goalData.TargetValue || goalData.targetValue) || 0,
-          StartDate: goalData.StartDate || goalData.startDate || new Date().toISOString(),
-          TargetDate: goalData.TargetDate || goalData.targetDate || new Date(new Date().setDate(new Date().getDate() + 30)).toISOString(),
-          IsCompleted: goalData.IsCompleted || goalData.isCompleted || false,
-          User: {
-            Auth0Id: userId || (goalData.User?.Auth0Id || goalData.user?.auth0Id || 'unknown')
-          }
+          MetricType: goalData.MetricType || goalData.metricType || 'weight',
+          IsCompleted: false,
+          // These additional fields match what we see in the MongoDB document
+          userId: userId, // This appears to be a flattened field in MongoDB
+          isCompleted: false, // Note: both cases exist in the document!
+          progresses: []
         };
         
-        console.log('Exact MongoDB format for goal API call:', JSON.stringify(exactFormatGoal, null, 2));
+        // Remove any undefined values
+        Object.keys(mongoFormatGoal).forEach(key => 
+          mongoFormatGoal[key] === undefined && delete mongoFormatGoal[key]
+        );
+        
+        console.log('Exact MongoDB document format for goal:', JSON.stringify(mongoFormatGoal, null, 2));
         
         // Make API call to create the goal
-        const response = await ApiService.post('Goals', exactFormatGoal);
+        const response = await ApiService.post('Goals', mongoFormatGoal);
         console.log('Create goal API response:', response);
         
         // Check if we got a proper response
@@ -93,33 +103,31 @@ const storeConfig = {
         
         console.log('New goal created with ID:', newGoalId);
         
-        // If API returned just an ID with null values, we need to immediately update
-        // the goal with the complete data to fix the null values issue
+        // If the API returned just an ID with missing values, update it immediately
         let createdGoal;
         
-        if (!response.Name && !response.name) {
-          console.log('API returned response with missing properties - performing immediate update');
+        if (!response.Name) {
+          console.log('API returned response with missing required properties - performing immediate update');
           
-          // Add the ID to our exact format goal
+          // Add the ID to our MongoDB format goal
           const updateGoal = {
-            ...exactFormatGoal,
-            Id: newGoalId
+            ...mongoFormatGoal,
+            Id: newGoalId  // Include ID for the update operation
           };
           
-          console.log('Performing immediate update with full data:', JSON.stringify(updateGoal, null, 2));
+          console.log('Performing immediate update with complete data:', JSON.stringify(updateGoal, null, 2));
           
           try {
-            // Immediately update the goal with the full data
+            // Immediately update the goal with complete data
             const updateResponse = await ApiService.put(`Goals/${newGoalId}`, updateGoal);
             console.log('Immediate update response:', updateResponse);
             
-            // If update was successful, use the update response
             if (updateResponse) {
               createdGoal = normalizeGoalProperties(updateResponse);
             } else {
-              // Otherwise use our original data with the new ID
+              // If update response is missing, use our original data with the ID
               createdGoal = {
-                ...normalizeGoalProperties(exactFormatGoal),
+                ...normalizeGoalProperties(mongoFormatGoal),
                 id: newGoalId,
                 _id: newGoalId,
                 createdDate: new Date().toISOString()
@@ -127,25 +135,25 @@ const storeConfig = {
             }
           } catch (updateError) {
             console.error('Error during immediate update:', updateError);
-            // Create a local goal object with combined data
+            
+            // Fall back to our prepared data with the ID
             createdGoal = {
-              ...normalizeGoalProperties(exactFormatGoal),
+              ...normalizeGoalProperties(mongoFormatGoal),
               id: newGoalId,
               _id: newGoalId,
-              createdDate: new Date().toISOString(),
-              userId: userId
+              createdDate: new Date().toISOString()
             };
           }
         } else {
-          // Response has the goal properties already
+          // API returned complete goal data
           createdGoal = normalizeGoalProperties(response);
-          console.log('Goal created successfully with properties:', createdGoal);
+          console.log('Goal created successfully with all properties:', createdGoal);
         }
         
         // Add the goal to the store
         commit('addGoal', createdGoal);
         
-        // Refresh goals from API to ensure consistency
+        // Refresh goals from API for consistency
         await dispatch('fetchGoals');
         
         return createdGoal;

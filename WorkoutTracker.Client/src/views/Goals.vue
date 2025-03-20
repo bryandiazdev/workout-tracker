@@ -487,23 +487,27 @@ export default {
         const currentValue = parseFloat(this.goalForm.currentValue) || 0;
         const targetValue = parseFloat(this.goalForm.targetValue) || 0;
         
-        // Create goal data object matching EXACTLY the format of working goals
-        // This matches the structure seen in the working MongoDB document
+        // Create goal data object to EXACTLY match the working MongoDB document
+        // This structure is based on the successful record (67dade72f1069d0f4496b384)
         const goalData = {
+          // These MUST be capitalized exactly as in MongoDB
           Name: this.goalForm.name.trim(),
           Description: (this.goalForm.description || 'Goal created from workout tracker').trim(),
-          MetricType: this.goalForm.metricType,
           Unit: this.goalForm.unit,
+          User: {
+            Auth0Id: userId
+          },
+          StartDate: startDate,
+          TargetDate: targetDate,
           StartingValue: startingValue,
           CurrentValue: currentValue,
           TargetValue: targetValue,
-          StartDate: startDate,
-          TargetDate: targetDate,
+          MetricType: this.goalForm.metricType,
           IsCompleted: false,
-          // Correctly format the User object
-          User: {
-            Auth0Id: userId
-          }
+          // Include these additional fields to match MongoDB structure
+          userId: userId,
+          isCompleted: false, // Note that both IsCompleted and isCompleted exist in the document
+          progresses: []
         };
         
         // Only include ID if editing
@@ -511,7 +515,7 @@ export default {
           goalData.Id = this.goalForm.id;
         }
         
-        console.log('Goal data prepared for save (EXACT MongoDB format):', JSON.stringify(goalData, null, 2));
+        console.log('Goal data prepared with exact MongoDB format:', JSON.stringify(goalData, null, 2));
         
         let result;
         
@@ -523,40 +527,10 @@ export default {
           
           NotificationService.showSuccess('Goal updated successfully!');
         } else {
-          // For direct API call bypassing store
-          if (false) {
-            // Only use this for debugging - direct API call
-            console.log('Making direct API call to create goal...');
-            
-            // Prepare headers
-            let authToken = localStorage.getItem('auth_token');
-            if (authToken && !authToken.startsWith('Bearer ')) {
-              authToken = `Bearer ${authToken}`;
-            }
-            
-            const headers = {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'Authorization': authToken
-            };
-            
-            // Make direct API call
-            const response = await fetch('/api/Goals', {
-              method: 'POST',
-              headers,
-              body: JSON.stringify(goalData),
-              credentials: 'include',
-              mode: 'cors'
-            });
-            
-            result = await response.json();
-            console.log('Direct API goal creation result:', result);
-          } else {
-            // Create new goal via store
-            console.log('Creating new goal with data via store action');
-            result = await this.$store.dispatch('createGoal', goalData);
-            console.log('Goal creation result:', result);
-          }
+          // Create new goal 
+          console.log('Creating new goal with MongoDB format data');
+          result = await this.$store.dispatch('createGoal', goalData);
+          console.log('Goal creation result:', result);
           
           // Store notification preference in localStorage to show after page reload if needed
           localStorage.setItem('goal_created_success', 'true');
@@ -1127,22 +1101,27 @@ export default {
       const currentValue = parseFloat(this.goalForm.currentValue) || 0;
       const targetValue = parseFloat(this.goalForm.targetValue) || 0;
       
-      // Create a complete, properly-formatted goal object
-      // This matches the structure of working goals in the database
+      // Create a goal object that EXACTLY matches the MongoDB document structure
+      // Based on successful document 67dade72f1069d0f4496b384
       const goal = {
+        // These field names MUST be capitalized exactly as in MongoDB
         "Name": this.goalForm.name.trim() || "New Goal",
         "Description": (this.goalForm.description || "Goal created from workout tracker").trim(),
         "Unit": this.goalForm.unit || "kg",
-        "MetricType": this.goalForm.metricType || "weight",
+        "User": {
+          "Auth0Id": userId
+        },
+        "StartDate": startDate,
+        "TargetDate": targetDate,
         "StartingValue": startingValue,
         "CurrentValue": currentValue,
         "TargetValue": targetValue,
-        "StartDate": startDate,
-        "TargetDate": targetDate,
+        "MetricType": this.goalForm.metricType || "weight",
         "IsCompleted": false,
-        "User": {
-          "Auth0Id": userId
-        }
+        // Include these additional fields that exist in successful documents
+        "userId": userId,
+        "isCompleted": false, // Note: both casing versions exist in successful documents!
+        "progresses": []
       };
       
       // Only include ID if editing an existing goal
@@ -1150,7 +1129,7 @@ export default {
         goal.Id = this.goalForm.id;
       }
       
-      console.log("Formatted API goal object:", goal);
+      console.log("Exact MongoDB format goal object:", goal);
       return goal;
     },
     
